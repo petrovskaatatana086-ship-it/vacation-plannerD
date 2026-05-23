@@ -1,1191 +1,1108 @@
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vacation Planner - Ultimate Multi-Trip Edition</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Vacation Planner - Ultimate Organizer (Мульти-поездки + Шаблоны)</title>
     <meta name="theme-color" content="#0f172a">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    
-    <!-- Подключаем зависимости -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-
+    <script>
+        tailwind.config = { 
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; background-color: #f8fafc; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        body { transition: background-color 0.3s, color 0.3s; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .animate-in { animation: fadeIn 0.3s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-in { animation: fadeIn 0.25s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900 antialiased">
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
-        
-        // Безопасное хранилище
-        const safeStorage = {
-            getItem: (key) => {
-                try { return localStorage.getItem(key); } catch (e) { return null; }
+        const { useState, useEffect, useMemo } = React;
+
+        // ----- Хранилище -----
+        const storage = {
+            get: (key, def) => {
+                try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch(e) { return def; }
             },
-            setItem: (key, value) => {
-                try { localStorage.setItem(key, value); } catch (e) { }
-            }
+            set: (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) {} }
         };
 
-        // Высокопроизводительные SVG-иконки без внешних зависимостей
-        const Icon = ({ name, size = 24, strokeWidth = 2, className = "" }) => {
-            const icons = {
-                home: (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} style={{ width: size, height: size }}>
-                        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                        <polyline points="9 22 9 12 15 12 15 22"/>
-                    </svg>
-                ),
-                calendar: (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} style={{ width: size, height: size }}>
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                        <line x1="16" y1="2" x2="16" y2="6"/>
-                        <line x1="8" y1="2" x2="8" y2="6"/>
-                        <line x1="3" y1="10" x2="21" y2="10"/>
-                    </svg>
-                ),
-                briefcase: (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} style={{ width: size, height: size }}>
-                        <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
-                        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
-                    </svg>
-                ),
-                'file-text': (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} style={{ width: size, height: size }}>
-                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
-                        <polyline points="14 2 14 8 20 8"/>
-                        <line x1="16" y1="13" x2="8" y2="13"/>
-                        <line x1="16" y1="17" x2="8" y2="17"/>
-                    </svg>
-                ),
-                coins: (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} style={{ width: size, height: size }}>
-                        <circle cx="8" cy="8" r="6"/>
-                        <circle cx="18" cy="18" r="4"/>
-                        <path d="M12 18a6 6 0 0 0-6-6"/>
-                    </svg>
-                ),
-                plus: (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} style={{ width: size, height: size }}>
-                        <line x1="12" y1="5" x2="12" y2="19"/>
-                        <line x1="5" y1="12" x2="19" y2="12"/>
-                    </svg>
-                ),
-                trash: (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} style={{ width: size, height: size }}>
-                        <polyline points="3 6 5 6 21 6"/>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                    </svg>
-                ),
-                upload: (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} style={{ width: size, height: size }}>
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                        <polyline points="17 8 12 3 7 8"/>
-                        <line x1="12" y1="3" x2="12" y2="15"/>
-                    </svg>
-                ),
-                download: (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} style={{ width: size, height: size }}>
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                        <polyline points="7 10 12 15 17 10"/>
-                        <line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                ),
-                plane: (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} style={{ width: size, height: size }}>
-                        <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3.5c-.5-.5-2.5 0-4 1.5L13.5 8.5 5.3 6.7c-.9-.2-1.9.2-2.4.9l-.6.9 7.7 4-3.7 3.7-3.2-.8c-.8-.2-1.6.2-1.8 1l-.2.7 4 2 2 4 .7-.2c.8-.2 1.2-1 1-1.8l-.8-3.2 3.7-3.7 4 7.7.9-.6c.7-.5 1.1-1.5.9-2.4z"/>
-                    </svg>
-                ),
-                zap: (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} style={{ width: size, height: size }}>
-                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-                    </svg>
-                ),
-                'check-circle-2': (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} style={{ width: size, height: size }}>
-                        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
-                        <polyline points="9 11 12 14 22 4"/>
-                    </svg>
-                ),
-                circle: (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} className={className} style={{ width: size, height: size }}>
-                        <circle cx="12" cy="12" r="10"/>
-                    </svg>
-                ),
-                package: (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} style={{ width: size, height: size }}>
-                        <polygon points="12 2 2 7 12 12 22 7 12 2"/>
-                        <polyline points="2 17 12 22 22 17"/>
-                        <polyline points="2 12 12 17 22 12"/>
-                    </svg>
-                ),
-                'edit-2': (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} style={{ width: size, height: size }}>
-                        <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
-                    </svg>
-                ),
-                'edit-3': (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} style={{ width: size, height: size }}>
-                        <path d="M12 20h9"/>
-                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-                    </svg>
-                ),
-                chevronDown: (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} style={{ width: size, height: size }}>
-                        <polyline points="6 9 12 15 18 9"/>
-                    </svg>
-                ),
-                chevronUp: (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} style={{ width: size, height: size }}>
-                        <polyline points="18 15 12 9 6 15"/>
-                    </svg>
-                ),
-                x: (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} style={{ width: size, height: size }}>
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
-                )
+        // ----- Глобальные константы -----
+        const DEFAULT_PACKING_CATS = ['Мои вещи', 'Аптечка', 'Документы', 'Техника', 'Разное'];
+        const DEFAULT_NOTE_CATS = ['Адреса', 'Покупки', 'Локации', 'Важное'];
+        const DEFAULT_BUDGET_CATS = ['Транспорт', 'Жилье', 'Развлечения', 'Питание', 'Другое'];
+        const DEFAULT_RATES = { '₽': 1, '$': 90, '€': 98, '¥': 12.5 };
+        const TIME_PRESETS = ['В планах', 'За 30 дней', 'За 14 дней', 'За 7 дней', '24 часа'];
+
+        // ----- Набор SVG Иконок -----
+        const Icon = ({ name, size = 20, className = "" }) => {
+            const svgProps = { className, width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" };
+            const paths = {
+                home: <><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></>,
+                calendar: <><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>,
+                briefcase: <><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></>,
+                'file-text': <><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></>,
+                plus: <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>,
+                trash: <><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></>,
+                'check-circle': <><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></>,
+                circle: <><circle cx="12" cy="12" r="10"/></>,
+                sun: <><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></>,
+                moon: <><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></>,
+                download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>,
+                zap: <><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></>,
+                clock: <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>,
+                mapPin: <><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></>,
+                dollar: <><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></>,
+                settings: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></>,
+                info: <><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></>
             };
-            return icons[name] || (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} className={className} style={{ width: size, height: size }}>
-                    <circle cx="12" cy="12" r="10"/>
-                </svg>
-            );
+            return <svg {...svgProps}>{paths[name] || paths.circle}</svg>;
         };
+
+        // ----- Создание пустой поездки -----
+        const createTrip = (name, date = '') => ({
+            id: Date.now() + Math.random(),
+            name: name || 'Новое путешествие',
+            date: date,
+            tasks: [
+                { id: 1, title: 'Проверить сроки действия паспортов', time: 'За 30 дней', completed: false, customDays: null },
+                { id: 2, title: 'Оформить туристическую страховку', time: 'За 14 дней', completed: false, customDays: null },
+                { id: 3, title: 'Загрузить офлайн-карты местности', time: 'За 7 дней', completed: false, customDays: null },
+                { id: 4, title: 'Зарядить повербанк и гаджеты', time: '24 часа', completed: false, customDays: null }
+            ],
+            packingList: [
+                { id: 101, item: 'Загранпаспорт и копии документов', cat: 'Документы', checked: false },
+                { id: 102, item: 'Аптечка (обезболивающее, пластыри)', cat: 'Аптечка', checked: false },
+                { id: 103, item: 'Зарядные устройства и адаптеры', cat: 'Техника', checked: false }
+            ],
+            notes: [
+                { id: 201, title: 'Полезные контакты', content: 'Отель Ресепшн: +7 (999) 123-45-67. Страховая служба: 8 (800) 555-35-35.', category: 'Важное' }
+            ],
+            itinerary: [
+                { id: 401, day: 'День 1', time: '09:00', title: 'Вылет и прибытие', content: 'Встреча в аэропорту, трансфер в отель, заселение.' },
+                { id: 402, day: 'День 1', time: '18:00', title: 'Приветственный ужин', content: 'Прогулка по центру города и ужин в уютном ресторанчике.' }
+            ],
+            budget: [
+                { id: 301, title: 'Авиабилеты', cost: 35000, currency: '₽', category: 'Транспорт' },
+                { id: 302, title: 'Бронь отеля (3 ночи)', cost: 15000, currency: '₽', category: 'Жилье' }
+            ],
+            lastMinute: [
+                { id: 1, title: 'Утюг выключен', checked: false },
+                { id: 2, title: 'Окна закрыты', checked: false },
+                { id: 3, title: 'Вода перекрыта', checked: false },
+                { id: 4, title: 'Мусор вынесен', checked: false }
+            ],
+            // Локальное UI состояние для поездки
+            activePackingCat: 'Документы',
+            selectedNoteCategory: 'Важное',
+            newBudgetCause: 'Транспорт'
+        });
 
         const App = () => {
-            const [activeTab, setActiveTab] = useState('home');
-            const [isModalOpen, setIsModalOpen] = useState(false);
-            const [isEditingName, setIsEditingName] = useState(false);
-            const fileInputRef = useRef(null);
+            // Глобальные настройки
+            const [darkMode, setDarkMode] = useState(() => storage.get('theme', false));
+            const [displayCurrency, setDisplayCurrency] = useState(() => storage.get('displayCurrency', '₽'));
+            const [exchangeRates, setExchangeRates] = useState(() => storage.get('exchangeRates', DEFAULT_RATES));
+            const [packingCategories, setPackingCategories] = useState(() => storage.get('packingCats', DEFAULT_PACKING_CATS));
+            const [noteCategories, setNoteCategories] = useState(() => storage.get('noteCats', DEFAULT_NOTE_CATS));
+            const [budgetCategories, setBudgetCategories] = useState(() => storage.get('budgetCats', DEFAULT_BUDGET_CATS));
+            const [packingTemplates, setPackingTemplates] = useState(() => storage.get('packingTemplates', []));
 
-            // Фиксированные категории вещей
-            const packingCategories = ['Мои вещи', 'Вещи супруга', 'Детские', 'Аптечка', 'Разное'];
-            const [activePackingCat, setActivePackingCat] = useState(packingCategories[0]);
+            // Кастомные системные уведомления / диалоги
+            const [customAlert, setCustomAlert] = useState(null); // { message, title, type }
+            const [customConfirm, setCustomConfirm] = useState(null); // { message, title, onConfirm, onCancel }
 
-            // --- КУРСЫ ВАЛЮТ (сохраняются) ---
-            const [exchangeRates, setExchangeRates] = useState(() => {
-                const saved = safeStorage.getItem('exchangeRates_v1');
-                return saved ? JSON.parse(saved) : { USD: 92.5, EUR: 100.2, CNY: 12.8 };
-            });
-            const [isRatesExpanded, setIsRatesExpanded] = useState(false);
-
-            // Валюта отображения общего итога
-            const [displayCurrency, setDisplayCurrency] = useState(() => safeStorage.getItem('displayCurrency_v1') || 'RUB');
-
-            // --- МУЛЬТИ-ПОЕЗДКИ ---
+            // Поездки
             const [trips, setTrips] = useState(() => {
-                const saved = safeStorage.getItem('trips_list_v1');
-                return saved ? JSON.parse(saved) : [
-                    { id: 'trip-1', name: 'Лазурный берег', date: '2026-07-15' },
-                    { id: 'trip-2', name: 'Горный поход', date: '2026-08-20' }
-                ];
+                const saved = storage.get('trips', null);
+                if (saved && saved.length) return saved;
+                
+                // Начальное демо-путешествие
+                const demo = createTrip('Лазурный Берег', '2026-07-15');
+                return [demo];
             });
-            const [activeTripId, setActiveTripId] = useState(() => {
-                const savedActive = safeStorage.getItem('activeTripId_v1');
-                return savedActive || 'trip-1';
+
+            const [currentTripId, setCurrentTripId] = useState(() => {
+                const saved = storage.get('currentTripId', null);
+                if (saved && trips.some(t => t.id === saved)) return saved;
+                return trips[0]?.id;
             });
-            
-            // Состояние формы создания новой поездки прямо на главном экране
-            const [isAddingTrip, setIsAddingTrip] = useState(false);
-            const [newTripNameInput, setNewTripNameInput] = useState('');
-            const [newTripDateInput, setNewTripDateInput] = useState('');
 
-            // Находим текущую активную поездку
-            const activeTrip = trips.find(t => t.id === activeTripId) || trips[0] || { id: 'default', name: 'Моя поездка', date: '' };
+            const currentTrip = useMemo(() => {
+                return trips.find(t => t.id === currentTripId) || trips[0];
+            }, [trips, currentTripId]);
 
-            // Функция получения данных текущей поездки
-            const getInitialData = (key, defaultValue) => {
-                const saved = safeStorage.getItem(`${key}_${activeTripId}`);
-                try { return saved ? JSON.parse(saved) : defaultValue; } catch (e) { return defaultValue; }
+            // Синхронизация с LocalStorage
+            useEffect(() => { storage.set('trips', trips); }, [trips]);
+            useEffect(() => { if (currentTripId) storage.set('currentTripId', currentTripId); }, [currentTripId]);
+            useEffect(() => { storage.set('theme', darkMode); document.documentElement.classList.toggle('dark', darkMode); }, [darkMode]);
+            useEffect(() => { storage.set('displayCurrency', displayCurrency); storage.set('exchangeRates', exchangeRates); }, [displayCurrency, exchangeRates]);
+            useEffect(() => { storage.set('packingCats', packingCategories); storage.set('noteCats', noteCategories); storage.set('budgetCats', budgetCategories); }, [packingCategories, noteCategories, budgetCategories]);
+            useEffect(() => { storage.set('packingTemplates', packingTemplates); }, [packingTemplates]);
+
+            // Кастомные триггеры диалогов вместо стандартных alert/confirm
+            const showAlert = (message, title = "Информация", type = "info") => {
+                setCustomAlert({ message, title, type });
             };
 
-            // --- ДАННЫЕ ТЕКУЩЕЙ ПОЕЗДКИ ---
-            const [tasks, setTasks] = useState([]);
-            const [packingList, setPackingList] = useState([]);
-            const [notes, setNotes] = useState([]);
-            const [expenses, setExpenses] = useState([]);
-            const [lastMinute, setLastMinute] = useState([]);
+            const showConfirm = (message, title = "Подтверждение", onConfirm) => {
+                setCustomConfirm({ message, title, onConfirm });
+            };
 
-            // Шаблоны вещей (глобальные, доступны во всех поездках)
-            const [packingTemplates, setPackingTemplates] = useState(() => {
-                const saved = safeStorage.getItem('packingTemplates_v1');
-                return saved ? JSON.parse(saved) : [
-                    { name: 'Летний стандарт', items: ['Купальник / Плавки', 'Солнцезащитный крем', 'Очки', 'Шорты', 'Кепка'] },
-                    { name: 'Горный экспресс', items: ['Ветровка', 'Треккинговая обувь', 'Термос', 'Фонарик', 'Дождевик'] },
-                    { name: 'Дорожная аптечка', items: ['Пластырь', 'Обезболивающее', 'Антисептик', 'Активированный уголь'] }
-                ];
-            });
+            // Обновление полей текущей поездки
+            const updateTrip = (updater) => {
+                setTrips(prev => prev.map(t => t.id === currentTripId ? updater(t) : t));
+            };
+            const getField = (field) => currentTrip?.[field] || [];
+            const setField = (field, value) => updateTrip(t => ({ ...t, [field]: value }));
+
+            // Конвертация валют
+            const convert = (amount, from, to) => {
+                const val = Number(amount) || 0;
+                if (from === to) return val;
+                const inRub = val * (exchangeRates[from] || 1);
+                return inRub / (exchangeRates[to] || 1);
+            };
+
+            // Общая стоимость бюджета
+            const totalBudgetCost = useMemo(() => {
+                const budgetList = getField('budget');
+                return budgetList.reduce((sum, item) => {
+                    return sum + convert(item.cost, item.currency, displayCurrency);
+                }, 0);
+            }, [currentTrip, displayCurrency, exchangeRates]);
+
+            // Статистика по таскам
+            const tasksList = getField('tasks');
+            const progress = useMemo(() => {
+                return tasksList.length ? Math.round((tasksList.filter(t => t.completed).length / tasksList.length) * 100) : 0;
+            }, [tasksList]);
+
+            const daysLeft = useMemo(() => {
+                if (!currentTrip?.date) return '—';
+                const difference = new Date(currentTrip.date) - new Date();
+                return Math.max(0, Math.ceil(difference / (1000 * 3600 * 24)));
+            }, [currentTrip?.date]);
+
+            // Управление поездками
+            const addTrip = (name, copyFromCurrent = false) => {
+                let newTrip;
+                if (copyFromCurrent && currentTrip) {
+                    newTrip = createTrip(name || `Копия ${currentTrip.name}`, currentTrip.date);
+                    newTrip.tasks = JSON.parse(JSON.stringify(currentTrip.tasks));
+                    newTrip.packingList = JSON.parse(JSON.stringify(currentTrip.packingList));
+                    newTrip.notes = JSON.parse(JSON.stringify(currentTrip.notes));
+                    newTrip.itinerary = JSON.parse(JSON.stringify(currentTrip.itinerary));
+                    newTrip.budget = JSON.parse(JSON.stringify(currentTrip.budget));
+                    newTrip.lastMinute = JSON.parse(JSON.stringify(currentTrip.lastMinute));
+                } else {
+                    newTrip = createTrip(name || `Поездка ${trips.length + 1}`, '');
+                }
+                setTrips([...trips, newTrip]);
+                setCurrentTripId(newTrip.id);
+                showAlert(`Поездка "${newTrip.name}" успешно создана!`, 'Успех', 'success');
+            };
+
+            const deleteTrip = (id) => {
+                if (trips.length <= 1) {
+                    showAlert('Невозможно удалить последнюю поездку. Создайте сначала другую.', 'Ошибка', 'error');
+                    return;
+                }
+                const targetTrip = trips.find(t => t.id === id);
+                showConfirm(`Вы уверены, что хотите удалить поездку "${targetTrip?.name || ''}"? Все данные будут стерты навсегда!`, 'Внимание', () => {
+                    const nextTrips = trips.filter(t => t.id !== id);
+                    setTrips(nextTrips);
+                    if (currentTripId === id) {
+                        setCurrentTripId(nextTrips[0].id);
+                    }
+                });
+            };
+
+            // Сохранение текущего списка вещей как нового шаблона
+            const saveAsTemplate = (name) => {
+                if (!name.trim()) {
+                    showAlert('Введите корректное имя шаблона.', 'Ошибка', 'error');
+                    return;
+                }
+                const newTemplate = { id: Date.now(), name, items: JSON.parse(JSON.stringify(getField('packingList'))) };
+                setPackingTemplates([...packingTemplates, newTemplate]);
+                showAlert(`Шаблон "${name}" сохранен.`, 'Отлично', 'success');
+            };
+
+            const applyTemplate = (templateId) => {
+                const tpl = packingTemplates.find(t => t.id === templateId);
+                if (tpl) {
+                    showConfirm(`Применить "${tpl.name}"? Текущий список вещей в этой категории будет заменен на шаблонный.`, 'Подтверждение', () => {
+                        setField('packingList', JSON.parse(JSON.stringify(tpl.items)));
+                        showAlert(`Шаблон "${tpl.name}" успешно применен!`, 'Выполнено', 'success');
+                    });
+                }
+            };
+
+            const deleteTemplate = (templateId) => {
+                showConfirm('Вы действительно хотите удалить этот шаблон списка вещей?', 'Удаление шаблона', () => {
+                    setPackingTemplates(prev => prev.filter(t => t.id !== templateId));
+                });
+            };
+
+            // Состояния модалок и форм
+            const [activeMainTab, setActiveMainTab] = useState('home');
+            const [infoSubTab, setInfoSubTab] = useState('notes');
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [modalType, setModalType] = useState('tasks');
+            const [newItemName, setNewItemName] = useState('');
+            const [newItemDetails, setNewItemDetails] = useState('');
+            const [customDays, setCustomDays] = useState('');
+            const [selectedTimePreset, setSelectedTimePreset] = useState('В планах');
+            const [packingCat, setPackingCat] = useState(DEFAULT_PACKING_CATS[0]);
+            const [noteCategory, setNoteCategory] = useState(DEFAULT_NOTE_CATS[0]);
+            const [itineraryDay, setItineraryDay] = useState('День 1');
+            const [itineraryTime, setItineraryTime] = useState('12:00');
+            const [budgetCost, setBudgetCost] = useState('');
+            const [budgetCurrency, setBudgetCurrency] = useState('₽');
+            const [budgetCat, setBudgetCat] = useState(DEFAULT_BUDGET_CATS[0]);
+            const [showTripManager, setShowTripManager] = useState(false);
+            const [newTripNameInput, setNewTripNameInput] = useState('');
             const [newTemplateName, setNewTemplateName] = useState('');
             const [showTemplateModal, setShowTemplateModal] = useState(false);
+            const [showSettings, setShowSettings] = useState(false);
 
-            // --- МОДАЛЬНЫЕ ОКНА БЮДЖЕТА ---
-            const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
-            const [editingExpenseId, setEditingExpenseId] = useState(null);
-            const [expenseTitle, setExpenseTitle] = useState('');
-            const [expenseAmount, setExpenseAmount] = useState('');
-            const [expenseCurrency, setExpenseCurrency] = useState('RUB');
-            const [expenseCategory, setExpenseCategory] = useState('Транспорт');
-
-            // Синхронизация при смене поездки
-            useEffect(() => {
-                setTasks(getInitialData('tasks', [
-                    { id: 1, title: 'Проверить сроки паспортов', time: 'За 30 дней', completed: true },
-                    { id: 2, title: 'Забронировать трансфер', time: 'За 14 дней', completed: false }
-                ]));
-                setPackingList(getInitialData('packingList_v3', [
-                    { id: 101, item: 'Купальник / Плавки', cat: 'Мои вещи', checked: false },
-                    { id: 102, item: 'Солнцезащитные очки', cat: 'Вещи супруга', checked: true }
-                ]));
-                setNotes(getInitialData('notes_v2', [
-                    { id: 901, title: 'Отель Riviera', content: 'ул. Набережная, 15. Код 1234', category: 'Адреса' }
-                ]));
-                setExpenses(getInitialData('expenses_v1', [
-                    { id: 501, title: 'Авиабилеты', amount: 45000, currency: 'RUB', category: 'Транспорт' },
-                    { id: 502, title: 'Отель у моря', amount: 600, currency: 'USD', category: 'Проживание' },
-                    { id: 503, title: 'Ужин в ресторане', amount: 80, currency: 'EUR', category: 'Питание' }
-                ]));
-                setLastMinute(getInitialData('lastMinute', [
-                    { id: 1, title: 'Утюг выключен', checked: false },
-                    { id: 2, title: 'Окна закрыты', checked: false },
-                    { id: 3, title: 'Вода перекрыта', checked: false },
-                    { id: 4, title: 'Мусор вынесен', checked: false }
-                ]));
-            }, [activeTripId]);
-
-            // Автосохранение при обновлении данных поездки
-            useEffect(() => {
-                if (activeTripId === 'default' || !activeTripId) return;
-                safeStorage.setItem(`tasks_${activeTripId}`, JSON.stringify(tasks));
-                safeStorage.setItem(`packingList_v3_${activeTripId}`, JSON.stringify(packingList));
-                safeStorage.setItem(`notes_v2_${activeTripId}`, JSON.stringify(notes));
-                safeStorage.setItem(`expenses_v1_${activeTripId}`, JSON.stringify(expenses));
-                safeStorage.setItem(`lastMinute_${activeTripId}`, JSON.stringify(lastMinute));
-            }, [tasks, packingList, notes, expenses, lastMinute, activeTripId]);
-
-            // Автосохранение общих настроек
-            useEffect(() => {
-                safeStorage.setItem('trips_list_v1', JSON.stringify(trips));
-                safeStorage.setItem('activeTripId_v1', activeTripId);
-                safeStorage.setItem('exchangeRates_v1', JSON.stringify(exchangeRates));
-                safeStorage.setItem('displayCurrency_v1', displayCurrency);
-                safeStorage.setItem('packingTemplates_v1', JSON.stringify(packingTemplates));
-            }, [trips, activeTripId, exchangeRates, displayCurrency, packingTemplates]);
-
-            const timePeriods = ['В планах', 'За 30 дней', 'За 14 дней', 'За 7 дней', '24 часа'];
-            const noteCategories = ['Адреса', 'Покупки', 'Места', 'Важное'];
-            const expenseCategories = ['Транспорт', 'Проживание', 'Питание', 'Развлечения', 'Покупки', 'Другое'];
-
-            // --- МУЛЬТИВАЛЮТНАЯ КОНВЕРТАЦИЯ ---
-            const convertToRUB = (amount, currency) => {
-                const val = parseFloat(amount) || 0;
-                if (currency === 'RUB') return val;
-                if (currency === 'USD') return val * (exchangeRates.USD || 92.5);
-                if (currency === 'EUR') return val * (exchangeRates.EUR || 100.2);
-                if (currency === 'CNY') return val * (exchangeRates.CNY || 12.8);
-                return val;
+            // Управление курсами валют и категориями в настройках
+            const handleRateChange = (curr, val) => {
+                setExchangeRates(prev => ({ ...prev, [curr]: parseFloat(val) || 0 }));
             };
 
-            const convertFromRUB = (amountInRUB, targetCurrency) => {
-                if (targetCurrency === 'RUB') return amountInRUB;
-                if (targetCurrency === 'USD') return amountInRUB / (exchangeRates.USD || 92.5);
-                if (targetCurrency === 'EUR') return amountInRUB / (exchangeRates.EUR || 100.2);
-                if (targetCurrency === 'CNY') return amountInRUB / (exchangeRates.CNY || 12.8);
-                return amountInRUB;
-            };
-
-            const getCurrencySymbol = (currency) => {
-                if (currency === 'RUB') return '₽';
-                if (currency === 'USD') return '$';
-                if (currency === 'EUR') return '€';
-                if (currency === 'CNY') return '¥';
-                return currency;
-            };
-
-            // Рассчет общих сумм бюджета
-            const totalBudget = expenses.reduce((sum, item) => sum + convertToRUB(item.amount, item.currency), 0);
-            const totalBudgetConverted = convertFromRUB(totalBudget, displayCurrency);
-
-            const getDaysLeft = () => {
-                if (!activeTrip.date) return 0; 
-                const diff = new Date(activeTrip.date) - new Date();
-                return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-            };
-
-            // --- УПРАВЛЕНИЕ ПОЕЗДКАМИ ---
-            const handleCreateTrip = (e) => {
-                e.preventDefault();
-                if (!newTripNameInput.trim()) return;
-                const newId = `trip-${Date.now()}`;
-                const newTrip = {
-                    id: newId,
-                    name: newTripNameInput.trim(),
-                    date: newTripDateInput || new Date().toISOString().split('T')[0]
-                };
-                setTrips([...trips, newTrip]);
-                setActiveTripId(newId);
-                setNewTripNameInput('');
-                setNewTripDateInput('');
-                setIsAddingTrip(false);
-            };
-
-            const handleDeleteTrip = (idToDelete) => {
-                if (trips.length <= 1) {
-                    alert("Нельзя удалить единственную поездку!");
-                    return;
-                }
-                if (confirm("Вы действительно хотите удалить эту поездку и все её данные?")) {
-                    const filtered = trips.filter(t => t.id !== idToDelete);
-                    setTrips(filtered);
-                    if (activeTripId === idToDelete) {
-                        setActiveTripId(filtered[0].id);
-                    }
-                    localStorage.removeItem(`tasks_${idToDelete}`);
-                    localStorage.removeItem(`packingList_v3_${idToDelete}`);
-                    localStorage.removeItem(`notes_v2_${idToDelete}`);
-                    localStorage.removeItem(`expenses_v1_${idToDelete}`);
-                    localStorage.removeItem(`lastMinute_${idToDelete}`);
+            const addCategory = (type, value) => {
+                if (!value.trim()) return;
+                if (type === 'packing') {
+                    if (!packingCategories.includes(value)) setPackingCategories([...packingCategories, value]);
+                } else if (type === 'notes') {
+                    if (!noteCategories.includes(value)) setNoteCategories([...noteCategories, value]);
+                } else if (type === 'budget') {
+                    if (!budgetCategories.includes(value)) setBudgetCategories([...budgetCategories, value]);
                 }
             };
 
-            // --- ШАБЛОНЫ ВЕЩЕЙ ---
-            const handleSavePackingAsTemplate = () => {
-                const name = newTemplateName.trim();
-                if (!name) return;
-                const itemsToSave = packingList.filter(p => p.cat === activePackingCat).map(p => p.item);
-                if (itemsToSave.length === 0) {
-                    alert("В текущем списке нет вещей для сохранения в качестве шаблона.");
-                    return;
-                }
-                if (packingTemplates.some(t => t.name.toLowerCase() === name.toLowerCase())) {
-                    alert("Шаблон с таким именем уже существует!");
-                    return;
-                }
-                setPackingTemplates([...packingTemplates, { name, items: itemsToSave }]);
-                setNewTemplateName('');
-                setShowTemplateModal(false);
-                alert("🎉 Шаблон успешно сохранен и доступен во всех поездках!");
+            const deleteCategory = (type, value) => {
+                showConfirm(`Вы действительно хотите удалить категорию "${value}"? Это не удалит сами элементы, но они скроются из фильтров.`, 'Подтверждение', () => {
+                    if (type === 'packing') setPackingCategories(prev => prev.filter(c => c !== value));
+                    if (type === 'notes') setNoteCategories(prev => prev.filter(c => c !== value));
+                    if (type === 'budget') setBudgetCategories(prev => prev.filter(c => c !== value));
+                });
             };
 
-            const handleApplyTemplate = (template) => {
-                if (confirm(`Применить шаблон «${template.name}» в раздел «${activePackingCat}»?`)) {
-                    const newItems = template.items.map((itemStr, index) => ({
-                        id: Date.now() + index,
-                        item: itemStr,
-                        cat: activePackingCat,
-                        checked: false
-                    }));
-                    setPackingList([...packingList, ...newItems]);
-                }
-            };
-
-            const handleDeleteTemplate = (templateName) => {
-                if (confirm(`Удалить шаблон «${templateName}»?`)) {
-                    setPackingTemplates(packingTemplates.filter(t => t.name !== templateName));
-                }
-            };
-
-            // --- БЮДЖЕТ: СОХРАНЕНИЕ / ИЗМЕНЕНИЕ ---
-            const handleSaveExpense = (e) => {
-                e.preventDefault();
-                if (!expenseTitle.trim() || !expenseAmount) return;
-                
-                if (editingExpenseId) {
-                    setExpenses(expenses.map(exp => exp.id === editingExpenseId ? {
-                        ...exp,
-                        title: expenseTitle.trim(),
-                        amount: parseFloat(expenseAmount),
-                        currency: expenseCurrency,
-                        category: expenseCategory
-                    } : exp));
-                    setEditingExpenseId(null);
-                } else {
-                    const newExpense = {
-                        id: Date.now(),
-                        title: expenseTitle.trim(),
-                        amount: parseFloat(expenseAmount),
-                        currency: expenseCurrency,
-                        category: expenseCategory
-                    };
-                    setExpenses([newExpense, ...expenses]);
-                }
-                setExpenseTitle('');
-                setExpenseAmount('');
-                setIsBudgetModalOpen(false);
-            };
-
-            const handleStartEditExpense = (exp) => {
-                setEditingExpenseId(exp.id);
-                setExpenseTitle(exp.title);
-                setExpenseAmount(exp.amount);
-                setExpenseCurrency(exp.currency);
-                setExpenseCategory(exp.category);
-                setIsBudgetModalOpen(true);
-            };
-
-            // Изменение названия текущей поездки
-            const handleRenameTrip = (newName) => {
-                if (!newName.trim()) return;
-                setTrips(trips.map(t => t.id === activeTripId ? { ...t, name: newName.trim() } : t));
-            };
-
-            const handleUpdateTripDate = (newDate) => {
-                setTrips(trips.map(t => t.id === activeTripId ? { ...t, date: newDate } : t));
+            const openModal = (type) => {
+                setModalType(type);
+                setNewItemName('');
+                setNewItemDetails('');
+                setCustomDays('');
+                setSelectedTimePreset('В планах');
+                setPackingCat(currentTrip?.activePackingCat || packingCategories[0]);
+                setNoteCategory(currentTrip?.selectedNoteCategory || noteCategories[0]);
+                setItineraryDay('День 1');
+                setItineraryTime('12:00');
+                setBudgetCost('');
+                setBudgetCurrency(displayCurrency);
+                setBudgetCat(currentTrip?.newBudgetCause || budgetCategories[0]);
+                setIsModalOpen(true);
             };
 
             const handleAddItem = (e) => {
                 e.preventDefault();
                 if (!newItemName.trim()) return;
                 const id = Date.now();
-                if (activeTab === 'tasks') setTasks([{ id, title: newItemName, time: selectedTime, completed: false }, ...tasks]);
-                else if (activeTab === 'packing') setPackingList([{ id, item: newItemName, cat: activePackingCat, checked: false }, ...packingList]);
-                else if (activeTab === 'notes') setNotes([{ id, title: newItemName, content: newItemContent, category: selectedCategory }, ...notes]);
-                setNewItemName('');
-                setNewItemContent('');
+                if (modalType === 'tasks') {
+                    let deadline = selectedTimePreset;
+                    if (customDays && parseInt(customDays) > 0) deadline = `${parseInt(customDays)} дн.`;
+                    const newTask = { id, title: newItemName, time: deadline, completed: false, customDays: customDays || null };
+                    setField('tasks', [newTask, ...getField('tasks')]);
+                } else if (modalType === 'packing') {
+                    const newItem = { id, item: newItemName, cat: packingCat, checked: false };
+                    setField('packingList', [newItem, ...getField('packingList')]);
+                    updateTrip(t => ({ ...t, activePackingCat: packingCat }));
+                } else if (modalType === 'notes') {
+                    const newNote = { id, title: newItemName, content: newItemDetails, category: noteCategory };
+                    setField('notes', [newNote, ...getField('notes')]);
+                    updateTrip(t => ({ ...t, selectedNoteCategory: noteCategory }));
+                } else if (modalType === 'itinerary') {
+                    const newItin = { id, day: itineraryDay, time: itineraryTime, title: newItemName, content: newItemDetails };
+                    // Сортировка по времени после добавления
+                    const list = [...getField('itinerary'), newItin].sort((a, b) => a.time.localeCompare(b.time));
+                    setField('itinerary', list);
+                } else if (modalType === 'budget') {
+                    const costNum = parseFloat(budgetCost) || 0;
+                    const newBudget = { id, title: newItemName, cost: costNum, currency: budgetCurrency, category: budgetCat };
+                    setField('budget', [newBudget, ...getField('budget')]);
+                    updateTrip(t => ({ ...t, newBudgetCause: budgetCat }));
+                }
                 setIsModalOpen(false);
             };
 
-            const progress = Math.round((tasks.filter(t => t.completed).length / (tasks.length || 1)) * 100);
+            const deleteItem = (type, id) => {
+                setField(type, getField(type).filter(i => i.id !== id));
+            };
 
-            const navigationItems = [
-                {id:'home', icon:'home', label:'Старт'}, 
-                {id:'tasks', icon:'calendar', label:'Задачи'}, 
-                {id:'packing', icon:'briefcase', label:'Вещи'}, 
-                {id:'budget', icon:'coins', label:'Бюджет'}, 
-                {id:'notes', icon:'file-text', label:'Заметки'}
-            ];
+            const toggleTaskComplete = (taskId) => {
+                setField('tasks', getField('tasks').map(t => t.id === taskId ? { ...t, completed: !t.completed } : t));
+            };
+
+            const togglePackingCheck = (itemId) => {
+                setField('packingList', getField('packingList').map(p => p.id === itemId ? { ...p, checked: !p.checked } : p));
+            };
 
             return (
-                <div className="min-h-screen w-full flex flex-col md:flex-row bg-slate-100 text-slate-800">
+                <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans">
                     
-                    {/* Левая панель навигации для десктопа / Верхняя шапка для мобильных */}
-                    <div className="w-full md:w-80 bg-slate-900 text-white flex flex-col justify-between p-6 md:h-screen md:sticky md:top-0 shadow-xl z-20">
-                        <div className="space-y-6">
-                            {/* Выбор поездки в сайдбаре */}
-                            <div className="pt-4 space-y-4">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Текущая поездка</span>
-                                    <button 
-                                        onClick={() => setIsAddingTrip(!isAddingTrip)}
-                                        className="text-xs bg-blue-600/30 text-blue-400 px-2 py-1 rounded-lg hover:bg-blue-600/50 transition-colors flex items-center gap-1 font-bold"
-                                    >
-                                        <Icon name="plus" size={12} strokeWidth={3} />
-                                        <span>Добавить</span>
+                    {/* ----- CUSTOM DIALOGS FOR ALERT & CONFIRM ----- */}
+                    {customAlert && (
+                        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-in">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className={`p-2 rounded-xl ${customAlert.type === 'error' ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/50' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/50'}`}>
+                                        <Icon name="info" size={24} />
+                                    </div>
+                                    <h3 className="font-bold text-lg">{customAlert.title}</h3>
+                                </div>
+                                <p className="text-slate-600 dark:text-slate-300 mb-6 text-sm leading-relaxed">{customAlert.message}</p>
+                                <button onClick={() => setCustomAlert(null)} className="w-full bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 py-2.5 rounded-xl font-semibold hover:opacity-90 active:scale-95 transition-all text-sm">
+                                    Понятно
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {customConfirm && (
+                        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-in">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="p-2 rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-950/50">
+                                        <Icon name="info" size={24} />
+                                    </div>
+                                    <h3 className="font-bold text-lg">{customConfirm.title}</h3>
+                                </div>
+                                <p className="text-slate-600 dark:text-slate-300 mb-6 text-sm leading-relaxed">{customConfirm.message}</p>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setCustomConfirm(null)} className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 py-2.5 rounded-xl font-semibold hover:opacity-90 active:scale-95 transition-all text-sm">
+                                        Отмена
+                                    </button>
+                                    <button onClick={() => { customConfirm.onConfirm(); setCustomConfirm(null); }} className="flex-1 bg-rose-600 text-white py-2.5 rounded-xl font-semibold hover:bg-rose-700 active:scale-95 transition-all text-sm">
+                                        Да, продолжить
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Боковая панель (навигация и поездки) */}
+                    <div className="w-full md:w-80 bg-slate-900 text-white p-5 flex flex-col justify-between md:h-screen sticky top-0 z-20 shadow-xl">
+                        <div>
+                            <div className="flex justify-between items-center mb-6">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-2xl">🌴</span>
+                                    <h2 className="text-xl font-bold tracking-tight">Vacation Planner</h2>
+                                </div>
+                                <div className="flex gap-1">
+                                    <button onClick={() => setShowSettings(!showSettings)} className={`p-2 rounded-xl transition-colors ${showSettings ? 'bg-blue-600' : 'bg-slate-800 hover:bg-slate-700'}`} title="Настройки валют и категорий">
+                                        <Icon name="settings" size={18} />
+                                    </button>
+                                    <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 transition-colors">
+                                        <Icon name={darkMode ? "sun" : "moon"} size={18} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Блок быстрого управления текущей поездкой */}
+                            <div className="bg-slate-800/40 border border-slate-700/30 rounded-2xl p-4 mb-6">
+                                <div className="flex justify-between items-center mb-3">
+                                    <span className="text-xs font-bold text-slate-400 tracking-wider uppercase">Мои путешествия</span>
+                                    <button onClick={() => setShowTripManager(!showTripManager)} className="text-xs bg-slate-700 px-3 py-1 rounded-lg text-slate-200 hover:bg-slate-600 transition-colors">
+                                        {showTripManager ? 'Закрыть' : 'Все поездки'}
                                     </button>
                                 </div>
 
-                                {isAddingTrip ? (
-                                    <form onSubmit={handleCreateTrip} className="space-y-2 bg-slate-800 p-3 rounded-2xl border border-slate-700">
-                                        <input 
-                                            autoFocus
-                                            type="text" 
-                                            placeholder="Куда летим?" 
-                                            className="w-full bg-slate-700 border-none rounded-xl p-2.5 text-xs text-white outline-none" 
-                                            value={newTripNameInput}
-                                            onChange={e => setNewTripNameInput(e.target.value)}
-                                        />
-                                        <input 
-                                            type="date" 
-                                            className="w-full bg-slate-700 border-none rounded-xl p-2.5 text-xs text-white outline-none" 
-                                            value={newTripDateInput}
-                                            onChange={e => setNewTripDateInput(e.target.value)}
-                                        />
-                                        <div className="flex gap-2 pt-1">
-                                            <button type="submit" className="flex-1 bg-blue-600 text-white text-[10px] font-bold p-2 rounded-lg hover:bg-blue-700">Создать</button>
-                                            <button type="button" onClick={() => setIsAddingTrip(false)} className="flex-1 bg-slate-600 text-white text-[10px] font-bold p-2 rounded-lg">Отмена</button>
-                                        </div>
-                                    </form>
-                                ) : (
-                                    <div className="relative">
-                                        <select 
-                                            className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl p-3 text-xs font-semibold outline-none appearance-none cursor-pointer"
-                                            value={activeTripId}
-                                            onChange={e => setActiveTripId(e.target.value)}
-                                        >
-                                            {trips.map(t => (
-                                                <option key={t.id} value={t.id}>{t.name} ({t.date ? new Date(t.date).toLocaleDateString('ru-RU', {month: 'short', year: '2-digit'}) : 'нет даты'})</option>
-                                            ))}
-                                        </select>
-                                        <div className="absolute right-3 top-3.5 pointer-events-none text-slate-400">
-                                            <Icon name="chevronDown" size={14} />
+                                {showTripManager ? (
+                                    <div className="space-y-2 max-h-60 overflow-y-auto no-scrollbar animate-in">
+                                        {trips.map(trip => (
+                                            <div key={trip.id} className={`flex justify-between items-center p-2.5 rounded-xl border transition-all ${trip.id === currentTripId ? 'bg-blue-600/20 border-blue-500' : 'bg-slate-800/70 border-slate-700/50'}`}>
+                                                <span className="text-sm font-semibold truncate max-w-[120px] cursor-pointer" onClick={() => { setCurrentTripId(trip.id); setShowTripManager(false); }}>
+                                                    {trip.name}
+                                                </span>
+                                                <div className="flex gap-2">
+                                                    {trip.id !== currentTripId && (
+                                                        <button onClick={() => { setCurrentTripId(trip.id); setShowTripManager(false); }} className="text-green-400 text-xs hover:underline">
+                                                            Выбрать
+                                                        </button>
+                                                    )}
+                                                    <button onClick={() => deleteTrip(trip.id)} className="text-rose-400 text-xs hover:underline">
+                                                        Удалить
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        <div className="border-t border-slate-700/50 pt-2.5 mt-2 space-y-2">
+                                            <input type="text" placeholder="Куда летим?" value={newTripNameInput} onChange={e => setNewTripNameInput(e.target.value)} className="bg-slate-900 border border-slate-700 text-xs rounded-xl px-3 py-2 w-full text-white placeholder-slate-500 focus:outline-none focus:border-blue-500" />
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <button onClick={() => { if(newTripNameInput.trim()) { addTrip(newTripNameInput, false); setNewTripNameInput(''); } }} className="bg-blue-600 hover:bg-blue-700 py-2 rounded-xl text-xs font-bold transition-all text-center">
+                                                    + Новая
+                                                </button>
+                                                <button onClick={() => { if(currentTrip) { addTrip(currentTrip.name + ' (Копия)', true); } }} className="bg-slate-700 hover:bg-slate-600 py-2 rounded-xl text-xs font-bold transition-all text-center" title="Копирует все задачи, вещи и бюджет из текущей">
+                                                    Копия тек.
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
-                                )}
-
-                                {isEditingName ? (
-                                    <div className="space-y-2 bg-slate-800 p-3 rounded-2xl">
-                                        <input autoFocus className="text-sm font-bold border-b border-blue-400 outline-none w-full bg-transparent text-white" value={activeTrip.name} onChange={e => handleRenameTrip(e.target.value)} onBlur={() => setIsEditingName(false)} />
-                                        <input type="date" className="text-xs bg-slate-700 p-1 rounded border-none outline-none text-white w-full" value={activeTrip.date} onChange={e => handleUpdateTripDate(e.target.value)} />
-                                    </div>
                                 ) : (
-                                    <div className="cursor-pointer group bg-slate-800/40 p-3 rounded-xl border border-slate-700/50 hover:bg-slate-800/80 transition-all flex items-center justify-between" onClick={() => setIsEditingName(true)}>
-                                        <div className="truncate">
-                                            <h1 className="text-base font-bold text-white truncate">{activeTrip.name}</h1>
-                                            <p className="text-blue-400 text-[9px] font-bold uppercase tracking-widest mt-0.5">
-                                                {activeTrip.date ? new Date(activeTrip.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }) : "Задать дату"}
-                                            </p>
+                                    <div className="cursor-pointer group" onClick={() => {
+                                        const newName = prompt('Изменить название поездки:', currentTrip?.name);
+                                        if (newName && newName.trim()) updateTrip(t => ({ ...t, name: newName.trim() }));
+                                    }}>
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="text-base font-bold group-hover:text-blue-400 transition-colors truncate max-w-[160px]">{currentTrip?.name || 'Нет поездок'}</h3>
+                                            <span className="text-xs text-slate-400">✏️</span>
                                         </div>
-                                        <Icon name="edit-3" size={12} className="text-slate-500 group-hover:text-blue-400 flex-shrink-0" />
+                                        <div className="flex items-center gap-2 mt-2" onClick={e => e.stopPropagation()}>
+                                            <input type="date" value={currentTrip?.date || ''} onChange={e => updateTrip(t => ({ ...t, date: e.target.value }))} className="bg-slate-900 border border-slate-700 text-xs rounded-lg px-2 py-1 text-white focus:outline-none focus:border-blue-500" />
+                                            <span className="text-xs text-slate-400">Старт</span>
+                                        </div>
                                     </div>
                                 )}
                             </div>
 
-                            {/* Кнопки экспорта/импорта/удаления */}
-                            <div className="flex gap-1.5 bg-slate-800/30 p-1.5 rounded-xl border border-slate-800/50">
-                                <button onClick={() => fileInputRef.current.click()} title="Загрузить бэкап" className="flex-1 bg-slate-800 p-2 rounded-lg text-slate-300 hover:bg-blue-600 hover:text-white transition-all flex justify-center items-center gap-2 text-[10px] font-bold">
-                                    <Icon name="upload" size={14} /> <span className="hidden md:inline">Импорт</span>
-                                </button>
-                                <button onClick={exportData} title="Скачать бэкап" className="flex-1 bg-slate-800 p-2 rounded-lg text-slate-300 hover:bg-green-600 hover:text-white transition-all flex justify-center items-center gap-2 text-[10px] font-bold">
-                                    <Icon name="download" size={14} /> <span className="hidden md:inline">Экспорт</span>
-                                </button>
-                                <button onClick={() => handleDeleteTrip(activeTripId)} title="Удалить текущую поездку" className="bg-slate-800 p-2 rounded-lg text-slate-500 hover:bg-red-600 hover:text-white transition-all">
-                                    <Icon name="trash" size={14} />
-                                </button>
-                                <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={importData} />
-                            </div>
-
-                            {/* Меню навигации (Десктоп) */}
-                            <nav className="hidden md:block space-y-1 pt-4">
-                                {navigationItems.map(item => (
-                                    <button 
-                                        key={item.id} 
-                                        onClick={() => {setActiveTab(item.id); setIsModalOpen(false);}} 
-                                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all text-xs font-bold ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'}`}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <Icon name={item.icon} size={16} strokeWidth={activeTab === item.id ? 2.5 : 2} />
-                                            <span>{item.label}</span>
-                                        </div>
+                            {/* Навигация */}
+                            <nav className="space-y-2">
+                                {[
+                                    { id: 'home', icon: 'home', label: 'Главный экран' },
+                                    { id: 'tasks', icon: 'calendar', label: 'План подготовки' },
+                                    { id: 'packing', icon: 'briefcase', label: 'Чек-лист вещей' },
+                                    { id: 'notes', icon: 'file-text', label: 'Детали поездки' }
+                                ].map(tab => (
+                                    <button key={tab.id} onClick={() => { setActiveMainTab(tab.id); setShowSettings(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-medium transition-all ${activeMainTab === tab.id && !showSettings ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+                                        <Icon name={tab.icon} size={20} /> <span className="text-sm">{tab.label}</span>
                                     </button>
                                 ))}
                             </nav>
                         </div>
-
-                        <div className="hidden md:block text-[10px] text-slate-500 font-semibold border-t border-slate-800/60 pt-4">
-                            Планировщик &bull; Multi-Trip Edition
+                        <div className="hidden md:block text-xs text-slate-500 mt-8 border-t border-slate-800 pt-4">
+                            Ultimate Vacation Organizer • 2026
                         </div>
                     </div>
 
-                    {/* Основной контент справа */}
-                    <div className="flex-1 flex flex-col min-h-0 relative">
+                    {/* Главный контейнер содержимого */}
+                    <div className="flex-1 p-4 md:p-8 max-w-5xl mx-auto w-full pb-24">
                         
-                        <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-32 md:pb-12 max-w-5xl w-full mx-auto no-scrollbar">
-                            
-                            {activeTab === 'home' && (
-                                <div className="space-y-6 animate-in">
-                                    {/* Информационный баннер */}
-                                    <div className="bg-slate-900 rounded-[2rem] p-6 md:p-8 text-white shadow-lg relative overflow-hidden">
-                                        <Icon name="plane" size={180} className="absolute -right-10 -top-10 text-white/5 rotate-12 pointer-events-none" />
-                                        <div className="relative z-10">
-                                            <p className="text-slate-400 text-[10px] uppercase tracking-widest font-extrabold mb-1">До отправления поезда/самолета</p>
-                                            <div className="text-5xl font-light mb-4 flex items-baseline gap-1">
-                                                {getDaysLeft()}
-                                                <span className="text-lg opacity-40">дн.</span>
-                                            </div>
-                                            <div className="flex justify-between items-center mb-1.5 text-[9px] font-bold text-slate-400">
-                                                <span>ВЫПОЛНЕНИЕ ЗАДАЧ ПОЕЗДКИ</span>
-                                                <span className="text-blue-400">{progress}%</span>
-                                            </div>
-                                            <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
-                                                <div className="bg-blue-500 h-full transition-all duration-700" style={{ width: `${progress}%` }}></div>
-                                            </div>
-                                        </div>
-                                    </div>
+                        {/* ----- НАСТРОЙКИ СИСТЕМЫ (ЕСЛИ ОТКРЫТЫ) ----- */}
+                        {showSettings ? (
+                            <div className="space-y-6 animate-in">
+                                <div className="flex justify-between items-center border-b pb-4 border-slate-200 dark:border-slate-800">
+                                    <h2 className="text-2xl font-extrabold tracking-tight">⚙️ Системные настройки</h2>
+                                    <button onClick={() => setShowSettings(false)} className="bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 px-4 py-2 rounded-xl text-sm font-semibold transition-all">Назад</button>
+                                </div>
 
-                                    {/* УПРАВЛЕНИЕ ПОЕЗДКАМИ ПРЯМО НА ГЛАВНОМ ЭКРАНЕ */}
-                                    <div className="bg-white p-6 rounded-[2rem] border border-slate-200/60 shadow-sm space-y-4">
-                                        <div className="flex justify-between items-center pb-2 border-b">
-                                            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                                                <Icon name="calendar" size={18} className="text-blue-500" />
-                                                Мои запланированные поездки
-                                            </h3>
-                                            <button 
-                                                onClick={() => setIsAddingTrip(!isAddingTrip)}
-                                                className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-xl font-bold flex items-center gap-1"
-                                            >
-                                                <Icon name="plus" size={12} strokeWidth={3} />
-                                                <span>Создать поездку</span>
-                                            </button>
-                                        </div>
-
-                                        {isAddingTrip && (
-                                            <form onSubmit={handleCreateTrip} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                    <div>
-                                                        <label className="block text-[10px] text-slate-400 font-extrabold uppercase mb-1">Куда отправляемся?</label>
-                                                        <input 
-                                                            autoFocus
-                                                            type="text" 
-                                                            required
-                                                            placeholder="Например: Мальдивы, Питер, Алтай..." 
-                                                            className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs font-semibold outline-none" 
-                                                            value={newTripNameInput}
-                                                            onChange={e => setNewTripNameInput(e.target.value)}
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-[10px] text-slate-400 font-extrabold uppercase mb-1">Дата старта</label>
-                                                        <input 
-                                                            type="date" 
-                                                            required
-                                                            className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs font-semibold outline-none text-slate-500" 
-                                                            value={newTripDateInput}
-                                                            onChange={e => setNewTripDateInput(e.target.value)}
-                                                        />
-                                                    </div>
-                                                </div>
-                                                <div className="flex justify-end gap-2 pt-2">
-                                                    <button type="submit" className="bg-blue-600 text-white text-xs font-bold px-4 py-2 rounded-xl hover:bg-blue-700">Добавить поездку</button>
-                                                    <button type="button" onClick={() => setIsAddingTrip(false)} className="bg-slate-200 text-slate-600 text-xs font-bold px-4 py-2 rounded-xl">Отмена</button>
-                                                </div>
-                                            </form>
-                                        )}
-
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            {trips.map(t => {
-                                                const isActive = t.id === activeTripId;
-                                                return (
-                                                    <div 
-                                                        key={t.id}
-                                                        onClick={() => setActiveTripId(t.id)}
-                                                        className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex justify-between items-center ${isActive ? 'bg-blue-50/50 border-blue-500 shadow-sm' : 'bg-slate-50/50 border-slate-100 hover:border-slate-200 hover:bg-slate-50'}`}
-                                                    >
-                                                        <div className="truncate">
-                                                            <h4 className="font-bold text-xs text-slate-800">{t.name}</h4>
-                                                            <p className="text-[10px] text-slate-400 font-bold mt-1">
-                                                                {t.date ? new Date(t.date).toLocaleDateString('ru-RU', {day: 'numeric', month: 'long', year: 'numeric'}) : 'Дата не выбрана'}
-                                                            </p>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            {isActive && (
-                                                                <span className="text-[9px] bg-blue-600 text-white font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Активна</span>
-                                                            )}
-                                                            <button 
-                                                                onClick={(e) => { e.stopPropagation(); handleDeleteTrip(t.id); }}
-                                                                className="text-slate-300 hover:text-red-500 p-1"
-                                                                title="Удалить поездку"
-                                                            >
-                                                                <Icon name="trash" size={14} />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-
-                                    {/* Быстрые виджеты */}
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div onClick={() => setActiveTab('tasks')} className="bg-white p-5 rounded-2xl border border-slate-200/60 cursor-pointer hover:shadow-md transition-all flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <div className="bg-orange-50 text-orange-500 p-2.5 rounded-xl"><Icon name="calendar" size={18} /></div>
-                                                <div>
-                                                    <h4 className="text-xs font-bold text-slate-800">Задачи</h4>
-                                                    <p className="text-[10px] text-slate-400 font-semibold">{tasks.filter(t => !t.completed).length} предстоит сделать</p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div onClick={() => setActiveTab('packing')} className="bg-white p-5 rounded-2xl border border-slate-200/60 cursor-pointer hover:shadow-md transition-all flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <div className="bg-indigo-50 text-indigo-500 p-2.5 rounded-xl"><Icon name="briefcase" size={18} /></div>
-                                                <div>
-                                                    <h4 className="text-xs font-bold text-slate-800">Багаж</h4>
-                                                    <p className="text-[10px] text-slate-400 font-semibold">{packingList.filter(p => !p.checked).length} сложить в чемодан</p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div onClick={() => setActiveTab('budget')} className="bg-white p-5 rounded-2xl border border-slate-200/60 cursor-pointer hover:shadow-md transition-all flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <div className="bg-green-50 text-green-600 p-2.5 rounded-xl"><Icon name="coins" size={18} /></div>
-                                                <div>
-                                                    <h4 className="text-xs font-bold text-slate-800">Всего затрат</h4>
-                                                    <p className="text-[10px] text-slate-400 font-semibold">{Math.round(totalBudgetConverted).toLocaleString()} {getCurrencySymbol(displayCurrency)}</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Экспресс-чек перед выходом */}
-                                    <div className="bg-rose-50 p-6 rounded-[2rem] border border-rose-100">
-                                        <div className="flex items-center gap-2 mb-4">
-                                            <Icon name="zap" size={14} className="text-rose-500" />
-                                            <h3 className="text-[10px] font-extrabold text-rose-800 uppercase tracking-widest">Перед самым выходом из дома</h3>
-                                        </div>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                            {lastMinute.map(item => (
-                                                <div 
-                                                    key={item.id} 
-                                                    onClick={() => setLastMinute(lastMinute.map(i => i.id === item.id ? {...i, checked: !i.checked} : i))}
-                                                    className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all ${item.checked ? 'bg-rose-100/30 line-through opacity-40' : 'bg-white shadow-sm hover:shadow border border-rose-200/30'}`}
-                                                >
-                                                    <Icon name={item.checked ? "check-circle-2" : "circle"} size={14} className={item.checked ? "text-rose-500" : "text-rose-300"} />
-                                                    <span className="text-xs font-bold text-rose-900">{item.title}</span>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Валюты и курсы */}
+                                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm space-y-4">
+                                        <h3 className="font-bold text-lg flex items-center gap-2"><Icon name="dollar" /> Курсы валют к Рублю (₽)</h3>
+                                        <div className="space-y-3">
+                                            {Object.keys(exchangeRates).map(curr => (
+                                                <div key={curr} className="flex items-center gap-3">
+                                                    <span className="font-bold w-8 text-center">{curr}</span>
+                                                    <input type="number" step="0.01" value={exchangeRates[curr]} onChange={e => handleRateChange(curr, e.target.value)} disabled={curr === '₽'} className="bg-slate-100 dark:bg-slate-800 rounded-xl px-3 py-2 w-full text-sm border border-transparent focus:bg-white focus:border-blue-500 transition-all dark:text-white disabled:opacity-50" />
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
-                                </div>
-                            )}
 
-                            {activeTab === 'tasks' && (
-                                <div className="space-y-6 animate-in">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {timePeriods.map(group => {
-                                            const groupTasks = tasks.filter(t => t.time === group);
-                                            if (groupTasks.length === 0) return null;
-                                            return (
-                                                <div key={group} className="bg-white p-5 rounded-[2rem] border border-slate-200/60 shadow-sm">
-                                                    <h3 className="text-[10px] uppercase tracking-widest text-slate-400 font-extrabold mb-4 pb-2 border-b border-slate-100">{group}</h3>
-                                                    <div className="space-y-2">
-                                                        {groupTasks.map(task => (
-                                                            <div key={task.id} className="group flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-transparent transition-all hover:bg-white hover:border-blue-100">
-                                                                <div onClick={() => setTasks(tasks.map(t => t.id === task.id ? {...t, completed: !t.completed} : t))} className="flex-1 flex items-center gap-3 cursor-pointer">
-                                                                    {task.completed ? <Icon name="check-circle-2" size={16} className="text-blue-500" /> : <Icon name="circle" size={16} className="text-slate-300" />}
-                                                                    <span className={`text-xs font-semibold ${task.completed ? 'line-through text-slate-400' : 'text-slate-700'}`}>{task.title}</span>
+                                    {/* Категории */}
+                                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm space-y-6">
+                                        {/* Упаковка */}
+                                        <div className="space-y-3">
+                                            <h4 className="font-bold text-sm text-slate-400 uppercase tracking-wider">Категории вещей</h4>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {packingCategories.map(c => (
+                                                    <span key={c} className="bg-slate-100 dark:bg-slate-800 text-xs px-2.5 py-1.5 rounded-xl flex items-center gap-1.5">
+                                                        {c}
+                                                        <button onClick={() => deleteCategory('packing', c)} className="text-rose-500 hover:text-rose-700 font-bold">×</button>
+                                                    </span>
+                                                ))}
+                                            </div>
+                                            <form onSubmit={e => { e.preventDefault(); const v = e.target.elements.addPackingCat.value; if(v){ addCategory('packing', v); e.target.reset(); } }} className="flex gap-2">
+                                                <input name="addPackingCat" placeholder="Новая категория" className="bg-slate-100 dark:bg-slate-800 rounded-xl px-3 py-1.5 w-full text-xs" />
+                                                <button type="submit" className="bg-blue-600 text-white px-3 rounded-xl text-xs font-bold">+</button>
+                                            </form>
+                                        </div>
+
+                                        {/* Заметки */}
+                                        <div className="space-y-3">
+                                            <h4 className="font-bold text-sm text-slate-400 uppercase tracking-wider">Категории заметок</h4>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {noteCategories.map(c => (
+                                                    <span key={c} className="bg-slate-100 dark:bg-slate-800 text-xs px-2.5 py-1.5 rounded-xl flex items-center gap-1.5">
+                                                        {c}
+                                                        <button onClick={() => deleteCategory('notes', c)} className="text-rose-500 hover:text-rose-700 font-bold">×</button>
+                                                    </span>
+                                                ))}
+                                            </div>
+                                            <form onSubmit={e => { e.preventDefault(); const v = e.target.elements.addNoteCat.value; if(v){ addCategory('notes', v); e.target.reset(); } }} className="flex gap-2">
+                                                <input name="addNoteCat" placeholder="Новая категория" className="bg-slate-100 dark:bg-slate-800 rounded-xl px-3 py-1.5 w-full text-xs" />
+                                                <button type="submit" className="bg-blue-600 text-white px-3 rounded-xl text-xs font-bold">+</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            /* ----- ОТОБРАЖЕНИЕ ОСНОВНЫХ ВКЛАДОК ----- */
+                            <>
+                                {activeMainTab === 'home' && (
+                                    <div className="space-y-6 animate-in">
+                                        
+                                        {/* Информационный баннер поездки */}
+                                        <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-blue-950 rounded-3xl p-6 md:p-8 text-white relative overflow-hidden shadow-xl shadow-blue-950/20">
+                                            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none text-8xl">✈️</div>
+                                            <span className="bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider">Ваше путешествие</span>
+                                            <h1 className="text-3xl md:text-4xl font-extrabold mt-3 leading-tight">{currentTrip?.name}</h1>
+                                            
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-white/10">
+                                                <div>
+                                                    <p className="text-xs text-indigo-200 uppercase tracking-wider">Осталось дней</p>
+                                                    <p className="text-2xl font-bold mt-1 text-white">{daysLeft}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-indigo-200 uppercase tracking-wider">Дата отправления</p>
+                                                    <p className="text-sm font-semibold mt-1 text-indigo-100">{currentTrip?.date ? new Date(currentTrip.date).toLocaleDateString() : 'Не указана'}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-indigo-200 uppercase tracking-wider">Бюджет поездки</p>
+                                                    <p className="text-sm font-semibold mt-1 text-emerald-400">{totalBudgetCost.toLocaleString(undefined, { maximumFractionDigits: 1 })} {displayCurrency}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-indigo-200 uppercase tracking-wider">Подготовка</p>
+                                                    <p className="text-sm font-semibold mt-1 text-white">{progress}%</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-6">
+                                                <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
+                                                    <div className="bg-gradient-to-r from-blue-400 to-indigo-400 h-full rounded-full transition-all duration-500" style={{ width: `${progress}%` }}></div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Карточки быстрой статистики */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-3xl shadow-sm flex items-center gap-4">
+                                                <div className="p-3 bg-amber-100 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 rounded-2xl">
+                                                    <Icon name="calendar" size={24} />
+                                                </div>
+                                                <div>
+                                                    <div className="text-xl font-bold">{getField('tasks').filter(t => !t.completed).length}</div>
+                                                    <div className="text-xs text-slate-400">задач в плане</div>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-3xl shadow-sm flex items-center gap-4">
+                                                <div className="p-3 bg-blue-100 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400 rounded-2xl">
+                                                    <Icon name="briefcase" size={24} />
+                                                </div>
+                                                <div>
+                                                    <div className="text-xl font-bold">{getField('packingList').filter(p => !p.checked).length}</div>
+                                                    <div className="text-xs text-slate-400">вещей не собрано</div>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-3xl shadow-sm flex items-center gap-4">
+                                                <div className="p-3 bg-purple-100 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400 rounded-2xl">
+                                                    <Icon name="dollar" size={24} />
+                                                </div>
+                                                <div>
+                                                    <div className="text-xl font-bold">{getField('budget').length}</div>
+                                                    <div className="text-xs text-slate-400">позиций в бюджете</div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Экспресс чек-лист перед выходом из дома */}
+                                        <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-200/50 dark:border-rose-950/30 p-6 rounded-3xl">
+                                            <h3 className="font-extrabold text-base mb-4 flex items-center gap-2 text-rose-800 dark:text-rose-400">
+                                                <Icon name="zap" size={18} /> Финальный чек-лист (перед выходом из дома)
+                                            </h3>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                {getField('lastMinute').map(item => (
+                                                    <label key={item.id} className="flex items-center gap-3 text-sm font-semibold cursor-pointer p-2 hover:bg-white/40 dark:hover:bg-slate-900/30 rounded-xl transition-all">
+                                                        <input type="checkbox" checked={item.checked} onChange={() => updateTrip(t => ({ ...t, lastMinute: t.lastMinute.map(i => i.id === item.id ? { ...i, checked: !i.checked } : i) }))} className="w-4.5 h-4.5 rounded text-rose-600 focus:ring-rose-500" />
+                                                        <span className={item.checked ? 'line-through text-slate-400' : 'text-slate-800 dark:text-slate-200'}>{item.title}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeMainTab === 'tasks' && (
+                                    <div className="space-y-6 animate-in">
+                                        <div className="flex justify-between items-center">
+                                            <div>
+                                                <h2 className="text-2xl font-extrabold tracking-tight">📌 План подготовки</h2>
+                                                <p className="text-xs text-slate-400 mt-1">Организуйте подготовку по временным периодам</p>
+                                            </div>
+                                            <button onClick={() => openModal('tasks')} className="bg-blue-600 text-white px-4 py-2.5 rounded-2xl text-sm font-bold flex items-center gap-1.5 hover:bg-blue-700 transition active:scale-95 shadow-md shadow-blue-500/15">
+                                                <Icon name="plus" size={16}/> Добавить задачу
+                                            </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-4">
+                                            {TIME_PRESETS.map(preset => {
+                                                const filtered = getField('tasks').filter(t => t.time === preset);
+                                                if (!filtered.length) return null;
+                                                return (
+                                                    <div key={preset} className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm">
+                                                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">{preset}</h3>
+                                                        <div className="space-y-1">
+                                                            {filtered.map(t => (
+                                                                <div key={t.id} className="flex justify-between items-center py-2.5 border-b border-slate-100 dark:border-slate-800/80 last:border-0 group">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <input type="checkbox" checked={t.completed} onChange={() => toggleTaskComplete(t.id)} className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 dark:bg-slate-800 dark:border-slate-700" />
+                                                                        <span className={`text-sm font-medium ${t.completed ? 'line-through text-slate-400' : 'text-slate-800 dark:text-slate-200'}`}>{t.title}</span>
+                                                                    </div>
+                                                                    <button onClick={() => deleteItem('tasks', t.id)} className="opacity-0 group-hover:opacity-100 p-1 bg-rose-50 text-rose-500 dark:bg-rose-950/40 dark:text-rose-400 rounded-lg hover:bg-rose-100 transition-all">
+                                                                        <Icon name="trash" size={16} />
+                                                                    </button>
                                                                 </div>
-                                                                <button onClick={() => deleteItem('tasks', task.id)} className="md:opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all">
-                                                                    <Icon name="trash" size={12} />
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+
+                                            {/* Кастомные сроки */}
+                                            {getField('tasks').filter(t => !TIME_PRESETS.includes(t.time)).length > 0 && (
+                                                <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm">
+                                                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Особые даты</h3>
+                                                    <div className="space-y-1">
+                                                        {getField('tasks').filter(t => !TIME_PRESETS.includes(t.time)).map(t => (
+                                                            <div key={t.id} className="flex justify-between items-center py-2.5 border-b border-slate-100 dark:border-slate-800/80 last:border-0 group">
+                                                                <div className="flex items-center gap-3">
+                                                                    <input type="checkbox" checked={t.completed} onChange={() => toggleTaskComplete(t.id)} className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500" />
+                                                                    <span className={`text-sm font-medium ${t.completed ? 'line-through text-slate-400' : 'text-slate-800 dark:text-slate-200'}`}>{t.title}</span>
+                                                                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-full">{t.time}</span>
+                                                                </div>
+                                                                <button onClick={() => deleteItem('tasks', t.id)} className="opacity-0 group-hover:opacity-100 p-1 bg-rose-50 text-rose-500 dark:bg-rose-950/40 dark:text-rose-400 rounded-lg hover:bg-rose-100 transition-all">
+                                                                    <Icon name="trash" size={16} />
                                                                 </button>
                                                             </div>
                                                         ))}
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
-                                    {tasks.length === 0 && <div className="text-center py-12 text-slate-400 text-sm bg-white rounded-3xl border">В списке задач пока пусто. Добавьте новые дела кнопкой "+".</div>}
-                                </div>
-                            )}
+                                            )}
 
-                            {activeTab === 'packing' && (
-                                <div className="space-y-6 animate-in">
-                                    
-                                    {/* Категории вещей */}
-                                    <div className="flex gap-1.5 items-center overflow-x-auto py-2 no-scrollbar sticky top-0 bg-slate-100/80 backdrop-blur-md z-10 w-full">
-                                        {packingCategories.map((cat) => (
-                                            <button 
-                                                key={cat}
-                                                onClick={() => setActivePackingCat(cat)} 
-                                                className={`px-4 py-2 rounded-xl text-xs font-bold border-2 transition-all ${activePackingCat === cat ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' : 'bg-white border-slate-200/60 text-slate-500 hover:bg-slate-50'}`}
-                                            >
-                                                {cat}
-                                            </button>
-                                        ))}
-                                    </div>
-
-                                    {/* Модуль шаблонов списков вещей */}
-                                    <div className="bg-slate-800 text-white p-5 rounded-[2rem] shadow-lg space-y-4">
-                                        <div className="flex items-center justify-between border-b border-slate-700 pb-3">
-                                            <div className="flex items-center gap-2">
-                                                <Icon name="package" size={16} className="text-indigo-400" />
-                                                <span className="text-xs font-bold uppercase tracking-wider">Шаблоны вещей</span>
-                                            </div>
-                                            <button 
-                                                onClick={() => setShowTemplateModal(true)} 
-                                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] px-3 py-1.5 rounded-lg font-bold transition-all"
-                                            >
-                                                Сохранить как шаблон
-                                            </button>
-                                        </div>
-
-                                        {packingTemplates.length === 0 ? (
-                                            <p className="text-[10px] text-slate-400">Шаблоны еще не созданы. Вы можете составить список вещей, а затем сохранить его.</p>
-                                        ) : (
-                                            <div className="flex flex-wrap gap-2">
-                                                {packingTemplates.map(tpl => (
-                                                    <div key={tpl.name} className="flex items-center gap-1.5 bg-slate-700 px-3 py-1.5 rounded-xl border border-slate-600 text-xs">
-                                                        <button onClick={() => handleApplyTemplate(tpl)} className="font-semibold text-white hover:text-indigo-300 pr-1.5 border-r border-slate-600">
-                                                            {tpl.name} ({tpl.items.length})
-                                                        </button>
-                                                        <button onClick={() => handleDeleteTemplate(tpl.name)} className="text-slate-400 hover:text-red-400 transition-colors ml-1">
-                                                            <Icon name="x" size={12} />
-                                                        </button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Модальное окно создания шаблона */}
-                                    {showTemplateModal && (
-                                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-                                            <div className="bg-white p-6 rounded-3xl max-w-sm w-full space-y-4">
-                                                <h3 className="font-bold text-sm text-slate-800">Сохранить список «{activePackingCat}» как шаблон</h3>
-                                                <input 
-                                                    autoFocus
-                                                    type="text" 
-                                                    placeholder="Назовите шаблон..." 
-                                                    className="w-full bg-slate-50 border p-3 rounded-xl text-xs font-bold outline-none focus:ring-2"
-                                                    value={newTemplateName}
-                                                    onChange={e => setNewTemplateName(e.target.value)}
-                                                />
-                                                <div className="flex gap-2">
-                                                    <button onClick={handleSavePackingAsTemplate} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold p-3 rounded-lg">Сохранить</button>
-                                                    <button onClick={() => setShowTemplateModal(false)} className="flex-1 bg-slate-100 text-slate-500 text-xs font-bold p-3 rounded-lg">Отмена</button>
+                                            {getField('tasks').length === 0 && (
+                                                <div className="text-center py-12 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl">
+                                                    <span className="text-4xl block mb-2">📒</span>
+                                                    <h3 className="text-slate-400 text-sm">Список задач пуст. Добавьте первую задачу.</h3>
                                                 </div>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Двухколоночный список вещей */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        {packingList.filter(p => p.cat === activePackingCat).map(item => (
-                                            <div key={item.id} className="group flex justify-between items-center p-4 bg-white border border-slate-200/60 rounded-2xl transition-all hover:border-indigo-200 shadow-sm">
-                                                <div onClick={() => setPackingList(packingList.map(p => p.id === item.id ? {...p, checked: !p.checked} : p))} className="flex-1 flex justify-between items-center cursor-pointer pr-3">
-                                                    <span className={`text-sm font-semibold transition-all ${item.checked ? 'line-through text-slate-400 opacity-60' : 'text-slate-800'}`}>{item.item}</span>
-                                                    {item.checked ? <Icon name="check-circle-2" className="text-indigo-500" /> : <Icon name="circle" className="text-slate-200" />}
-                                                </div>
-                                                <button onClick={() => deleteItem('packing', item.id)} className="md:opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all p-1">
-                                                    <Icon name="trash" size={14} />
-                                                </button>
-                                            </div>
-                                        ))}
-
-                                        {packingList.filter(p => p.cat === activePackingCat).length === 0 && (
-                                            <div className="sm:col-span-2 p-12 border border-dashed border-slate-300 bg-white rounded-3xl text-sm text-slate-400 text-center font-medium">
-                                                Раздел «{activePackingCat}» пока пуст.<br/>Нажмите кнопку «+» в углу экрана, чтобы добавить нужные вещи.
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {activeTab === 'budget' && (
-                                <div className="space-y-6 animate-in">
-                                    
-                                    {/* ПАНЕЛЬ НАСТРОЙКИ КУРСОВ ВАЛЮТ */}
-                                    <div className="bg-white rounded-[2rem] p-5 shadow-sm border border-slate-200/60">
-                                        <button 
-                                            onClick={() => setIsRatesExpanded(!isRatesExpanded)}
-                                            className="w-full flex items-center justify-between text-slate-700 font-bold text-xs uppercase tracking-wider"
-                                        >
-                                            <span className="flex items-center gap-2">
-                                                <Icon name="coins" size={16} className="text-indigo-500" />
-                                                Настройка курсов валют (в ₽)
-                                            </span>
-                                            <Icon name={isRatesExpanded ? 'chevronUp' : 'chevronDown'} size={14} />
-                                        </button>
-
-                                        {isRatesExpanded && (
-                                            <div className="grid grid-cols-3 gap-3 pt-4 mt-3 border-t border-slate-100 animate-in">
-                                                <div>
-                                                    <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">USD ($)</label>
-                                                    <input 
-                                                        type="number" 
-                                                        step="0.1"
-                                                        className="w-full bg-slate-50 border p-2.5 rounded-xl text-xs font-bold outline-none"
-                                                        value={exchangeRates.USD}
-                                                        onChange={e => setExchangeRates({ ...exchangeRates, USD: parseFloat(e.target.value) || 0 })}
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">EUR (€)</label>
-                                                    <input 
-                                                        type="number" 
-                                                        step="0.1"
-                                                        className="w-full bg-slate-50 border p-2.5 rounded-xl text-xs font-bold outline-none"
-                                                        value={exchangeRates.EUR}
-                                                        onChange={e => setExchangeRates({ ...exchangeRates, EUR: parseFloat(e.target.value) || 0 })}
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">CNY (¥)</label>
-                                                    <input 
-                                                        type="number" 
-                                                        step="0.1"
-                                                        className="w-full bg-slate-50 border p-2.5 rounded-xl text-xs font-bold outline-none"
-                                                        value={exchangeRates.CNY}
-                                                        onChange={e => setExchangeRates({ ...exchangeRates, CNY: parseFloat(e.target.value) || 0 })}
-                                                    />
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* ИТОГОВАЯ ПАНЕЛЬ С КОНВЕРТАЦИЕЙ И АНАЛИТИКОЙ */}
-                                    <div className="bg-slate-900 text-white rounded-[2rem] p-6 shadow-md space-y-6">
-                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                            <div>
-                                                <p className="text-[10px] text-slate-400 uppercase font-extrabold tracking-wider mb-1">Общие расходы на поездку</p>
-                                                <h3 className="text-4xl font-light">
-                                                    {Math.round(totalBudgetConverted).toLocaleString()}{' '}
-                                                    <span className="text-xl font-normal text-blue-400">{getCurrencySymbol(displayCurrency)}</span>
-                                                </h3>
-                                            </div>
-                                            {/* Выбор валюты просмотра общего итога */}
-                                            <div className="flex bg-slate-800 p-1.5 rounded-xl border border-slate-700 w-fit self-start sm:self-auto">
-                                                {['RUB', 'USD', 'EUR', 'CNY'].map(cur => (
-                                                    <button 
-                                                        key={cur}
-                                                        onClick={() => setDisplayCurrency(cur)}
-                                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${displayCurrency === cur ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
-                                                    >
-                                                        {getCurrencySymbol(cur)}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        {/* Аналитика по категориям расходов */}
-                                        <div className="border-t border-slate-800 pt-5 space-y-3">
-                                            <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Категории затрат</h4>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                {expenseCategories.map(cat => {
-                                                    const catTotalRUB = expenses.filter(e => e.category === cat).reduce((sum, item) => sum + convertToRUB(item.amount, item.currency), 0);
-                                                    const catTotalConverted = convertFromRUB(catTotalRUB, displayCurrency);
-                                                    const pct = totalBudget ? Math.round((catTotalRUB / totalBudget) * 100) : 0;
-                                                    
-                                                    if (catTotalRUB === 0) return null;
-
-                                                    return (
-                                                        <div key={cat} className="bg-slate-800/40 border border-slate-800 p-3.5 rounded-xl">
-                                                            <div className="flex justify-between items-center text-xs font-bold mb-1.5">
-                                                                <span className="text-slate-300">{cat}</span>
-                                                                <span className="text-white">{Math.round(catTotalConverted).toLocaleString()} {getCurrencySymbol(displayCurrency)} ({pct}%)</span>
-                                                            </div>
-                                                            <div className="w-full bg-slate-800 rounded-full h-1">
-                                                                <div className="bg-blue-400 h-1 rounded-full" style={{ width: `${pct}%` }}></div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* СПИСОК РАСХОДОВ */}
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between px-1">
-                                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Детализация платежей</h3>
-                                            <button 
-                                                onClick={() => {
-                                                    setEditingExpenseId(null);
-                                                    setExpenseTitle('');
-                                                    setExpenseAmount('');
-                                                    setExpenseCurrency('RUB');
-                                                    setExpenseCategory('Транспорт');
-                                                    setIsBudgetModalOpen(true);
-                                                }}
-                                                className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5"
-                                            >
-                                                <Icon name="plus" size={12} strokeWidth={3} />
-                                                <span>Добавить расход</span>
-                                            </button>
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            {expenses.map(exp => {
-                                                const convertedVal = convertFromRUB(convertToRUB(exp.amount, exp.currency), displayCurrency);
-                                                const isDifferentCurrency = exp.currency !== displayCurrency;
-
-                                                return (
-                                                    <div key={exp.id} className="group bg-white p-4 rounded-xl border border-slate-200/60 shadow-sm flex items-center justify-between hover:border-blue-100 transition-all">
-                                                        <div className="flex-1 min-w-0 pr-4">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-[9px] bg-slate-100 text-slate-500 font-bold px-2 py-0.5 rounded uppercase">{exp.category}</span>
-                                                            </div>
-                                                            <h4 className="font-bold text-xs text-slate-800 mt-1 truncate">{exp.title}</h4>
-                                                        </div>
-                                                        <div className="text-right flex-shrink-0 flex items-center gap-3">
-                                                            <div>
-                                                                <div className="font-extrabold text-sm text-slate-900">
-                                                                    {exp.amount} {getCurrencySymbol(exp.currency)}
-                                                                </div>
-                                                                {/* Умная подсказка примерной конвертации */}
-                                                                {isDifferentCurrency && (
-                                                                    <div className="text-[10px] text-indigo-500 font-bold mt-0.5">
-                                                                        &asymp; {Math.round(convertedVal).toLocaleString()} {getCurrencySymbol(displayCurrency)}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                            <div className="flex items-center gap-1.5">
-                                                                <button onClick={() => handleStartEditExpense(exp)} className="p-1 text-slate-300 hover:text-blue-500">
-                                                                    <Icon name="edit-2" size={13} />
-                                                                </button>
-                                                                <button onClick={() => setExpenses(expenses.filter(e => e.id !== exp.id))} className="p-1 text-slate-300 hover:text-red-500">
-                                                                    <Icon name="trash" size={13} />
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-
-                                            {expenses.length === 0 && (
-                                                <div className="text-center py-12 text-slate-400 text-xs bg-white rounded-3xl border">Здесь будут записаны расходы. Нажмите «Добавить расход» выше.</div>
                                             )}
                                         </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
 
-                            {activeTab === 'notes' && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in">
-                                    {noteCategories.map(cat => {
-                                        const catNotes = notes.filter(n => n.category === cat);
-                                        return (
-                                            <div key={cat} className="bg-white p-5 rounded-[2rem] border border-slate-200/60 shadow-sm space-y-3">
-                                                <h3 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest pb-2 border-b border-slate-50">{cat}</h3>
-                                                <div className="space-y-3">
-                                                    {catNotes.map(note => (
-                                                        <div key={note.id} className="bg-slate-50 rounded-xl p-4 group relative border border-transparent hover:border-blue-100 hover:bg-white transition-all">
-                                                            <div className="flex justify-between items-start mb-2">
-                                                                <h4 className="font-bold text-xs text-slate-800 tracking-tight">{note.title}</h4>
-                                                                <button onClick={() => deleteItem('notes', note.id)} className="text-slate-300 hover:text-red-500 transition-all">
-                                                                    <Icon name="x" size={14}/>
-                                                                </button>
-                                                            </div>
-                                                            <p className="text-xs text-slate-500 leading-relaxed whitespace-pre-wrap font-medium">{note.content}</p>
-                                                        </div>
-                                                    ))}
-                                                    {catNotes.length === 0 && <div className="p-4 text-[10px] text-slate-300 text-center uppercase font-bold tracking-widest">Нет записей</div>}
-                                                </div>
+                                {activeMainTab === 'packing' && (
+                                    <div className="space-y-6 animate-in">
+                                        <div className="flex flex-wrap justify-between items-center gap-4">
+                                            <div>
+                                                <h2 className="text-2xl font-extrabold tracking-tight">🧳 Упаковка вещей</h2>
+                                                <p className="text-xs text-slate-400 mt-1">Распределите вещи и отмечайте собранное по мере упаковки</p>
                                             </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </main>
-
-                        {/* Плавающая кнопка "+" */}
-                        {['tasks', 'packing', 'notes'].includes(activeTab) && (
-                            <button onClick={() => setIsModalOpen(true)} className="fixed bottom-24 right-6 md:bottom-8 md:right-8 bg-blue-600 text-white w-14 h-14 rounded-2xl shadow-xl flex items-center justify-center active:scale-95 hover:scale-105 transition-all z-40 hover:bg-blue-700">
-                                <Icon name="plus" size={26} />
-                            </button>
-                        )}
-
-                        {/* Мобильный таб-бар снизу */}
-                        <div className="md:hidden fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-md border-t border-slate-200 h-20 flex justify-around items-center px-2 z-30 pb-2">
-                            {navigationItems.map(item => (
-                                <button key={item.id} onClick={() => {setActiveTab(item.id); setIsModalOpen(false);}} className={`flex flex-col items-center gap-1 transition-all px-3 ${activeTab === item.id ? 'text-blue-600 scale-105' : 'text-slate-400'}`}>
-                                    <Icon name={item.icon} size={18} />
-                                    <span className="text-[9px] font-bold uppercase">{item.label}</span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Модальное окно создания/редактирования задач и заметок */}
-                    {isModalOpen && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}></div>
-                            <div className="w-full max-w-md bg-white rounded-[2.5rem] p-6 md:p-8 shadow-2xl relative animate-in max-h-[90vh] overflow-y-auto">
-                                <h2 className="text-lg font-bold mb-4 text-slate-900">
-                                    {activeTab === 'tasks' ? "Новое дело" : activeTab === 'notes' ? "Новая заметка" : `Добавить в «${activePackingCat}»`}
-                                </h2>
-                                <form onSubmit={handleAddItem} className="space-y-4">
-                                    <input autoFocus type="text" value={newItemName} onChange={e => setNewItemName(e.target.value)} placeholder={activeTab === 'packing' ? "Например: Купальник, SPF-крем..." : "Заголовок..."} className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 font-semibold text-sm text-slate-900 outline-none focus:ring-2 ring-blue-500/20 transition-all" />
-                                    
-                                    {activeTab === 'notes' && (
-                                        <div className="space-y-4">
-                                            <textarea value={newItemContent} onChange={e => setNewItemContent(e.target.value)} placeholder="Описание / детали / полезные ссылки..." className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs font-medium h-28 outline-none no-scrollbar" />
-                                            <div className="flex flex-wrap gap-1.5">
-                                                {noteCategories.map(cat => (
-                                                    <button key={cat} type="button" onClick={() => setSelectedCategory(cat)} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${selectedCategory === cat ? 'bg-blue-600 border-blue-600 text-white shadow' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>{cat}</button>
-                                                ))}
+                                            <div className="flex gap-2">
+                                                <button onClick={() => setShowTemplateModal(true)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-2xl text-sm font-bold flex items-center gap-1.5 transition active:scale-95 shadow-md shadow-purple-500/10">
+                                                    <Icon name="download" size={15}/> Шаблоны
+                                                </button>
+                                                <button onClick={() => openModal('packing')} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-2xl text-sm font-bold flex items-center gap-1.5 transition active:scale-95 shadow-md shadow-blue-500/10">
+                                                    <Icon name="plus" size={15}/> Добавить вещь
+                                                </button>
                                             </div>
                                         </div>
-                                    )}
-                                    
-                                    {activeTab === 'tasks' && (
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {timePeriods.map(p => (
-                                                <button key={p} type="button" onClick={() => setSelectedTime(p)} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${selectedTime === p ? 'bg-slate-900 border-slate-900 text-white shadow' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>{p}</button>
+
+                                        {/* Слайдер по категориям вещей */}
+                                        <div className="flex gap-1.5 overflow-x-auto pb-2 no-scrollbar">
+                                            {packingCategories.map(cat => (
+                                                <button key={cat} onClick={() => updateTrip(t => ({ ...t, activePackingCat: cat }))} className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition-all whitespace-nowrap ${currentTrip?.activePackingCat === cat ? 'bg-indigo-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 border dark:border-slate-800 text-slate-600 dark:text-slate-300'}`}>{cat}</button>
                                             ))}
                                         </div>
-                                    )}
-                                    
-                                    <div className="flex gap-2 pt-2">
-                                        <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 bg-slate-100 text-slate-500 font-bold p-3.5 text-xs rounded-xl hover:bg-slate-200 transition-all">Отмена</button>
-                                        <button type="submit" className="flex-1 bg-blue-600 text-white font-bold p-3.5 text-xs rounded-xl hover:bg-blue-700 transition-all">Добавить</button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    )}
 
-                    {/* Модальное окно бюджетов */}
-                    {isBudgetModalOpen && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsBudgetModalOpen(false)}></div>
-                            <div className="w-full max-w-md bg-white rounded-[2.5rem] p-6 shadow-2xl relative animate-in max-h-[90vh] overflow-y-auto">
-                                <h2 className="text-lg font-bold mb-4 text-slate-900">
-                                    {editingExpenseId ? "Редактировать расход" : "Добавить новый расход"}
-                                </h2>
-                                <form onSubmit={handleSaveExpense} className="space-y-4">
-                                    <div>
-                                        <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Что оплачено / куплено</label>
-                                        <input 
-                                            autoFocus 
-                                            type="text" 
-                                            value={expenseTitle} 
-                                            onChange={e => setExpenseTitle(e.target.value)} 
-                                            placeholder="Например: Аренда авто, билеты в музей..." 
-                                            className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 font-semibold text-sm outline-none focus:ring-2 ring-blue-500/20" 
-                                        />
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Стоимость / Сумма</label>
-                                            <input 
-                                                type="number" 
-                                                step="0.01"
-                                                value={expenseAmount} 
-                                                onChange={e => setExpenseAmount(e.target.value)} 
-                                                placeholder="Сумма" 
-                                                className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 font-semibold text-sm outline-none focus:ring-2" 
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Индивидуальная валюта</label>
-                                            <select 
-                                                className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 font-semibold text-sm outline-none cursor-pointer focus:ring-2"
-                                                value={expenseCurrency}
-                                                onChange={e => setExpenseCurrency(e.target.value)}
-                                            >
-                                                <option value="RUB">RUB (₽)</option>
-                                                <option value="USD">USD ($)</option>
-                                                <option value="EUR">EUR (€)</option>
-                                                <option value="CNY">CNY (¥)</option>
-                                            </select>
+                                        {/* Список вещей выбранной категории */}
+                                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm">
+                                            <div className="space-y-1">
+                                                {getField('packingList').filter(p => p.cat === currentTrip?.activePackingCat).map(item => (
+                                                    <div key={item.id} className="flex justify-between items-center p-2.5 border-b border-slate-100 dark:border-slate-800/80 last:border-0 group">
+                                                        <div className="flex items-center gap-3">
+                                                            <input type="checkbox" checked={item.checked} onChange={() => togglePackingCheck(item.id)} className="w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500" />
+                                                            <span className={`text-sm font-medium ${item.checked ? 'line-through text-slate-400' : 'text-slate-800 dark:text-slate-200'}`}>{item.item}</span>
+                                                        </div>
+                                                        <button onClick={() => deleteItem('packingList', item.id)} className="opacity-0 group-hover:opacity-100 p-1 bg-rose-50 text-rose-500 dark:bg-rose-950/40 dark:text-rose-400 rounded-lg hover:bg-rose-100 transition-all">
+                                                            <Icon name="trash" size={16} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                {getField('packingList').filter(p => p.cat === currentTrip?.activePackingCat).length === 0 && (
+                                                    <div className="text-center py-10">
+                                                        <p className="text-slate-400 text-xs">Категория "{currentTrip?.activePackingCat}" пока пуста.</p>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
+                                )}
 
-                                    <div>
-                                        <label className="block text-[10px] text-slate-400 font-bold uppercase mb-2">Категория операции</label>
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {expenseCategories.map(cat => (
-                                                <button 
-                                                    key={cat} 
-                                                    type="button" 
-                                                    onClick={() => setExpenseCategory(cat)} 
-                                                    className={`px-3.5 py-2 rounded-lg text-xs font-bold border transition-all ${expenseCategory === cat ? 'bg-blue-600 border-blue-600 text-white shadow' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}
-                                                >
-                                                    {cat}
+                                {activeMainTab === 'notes' && (
+                                    <div className="space-y-6 animate-in">
+                                        
+                                        {/* Переключатель дополнительных подразделов внутри Детали поездки */}
+                                        <div className="flex gap-2 bg-slate-200/60 dark:bg-slate-900 p-1 rounded-2xl w-fit">
+                                            {[
+                                                { id: 'notes', icon: 'file-text', title: 'Заметки' },
+                                                { id: 'itinerary', icon: 'calendar', title: 'Маршрут' },
+                                                { id: 'budget', icon: 'dollar', title: 'Бюджет' }
+                                            ].map(sub => (
+                                                <button key={sub.id} onClick={() => setInfoSubTab(sub.id)} className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${infoSubTab === sub.id ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'}`}>
+                                                    <Icon name={sub.icon} size={14} /> {sub.title}
                                                 </button>
                                             ))}
                                         </div>
+
+                                        {/* ПОДРАЗДЕЛ: ЗАМЕТКИ */}
+                                        {infoSubTab === 'notes' && (
+                                            <div className="space-y-4 animate-in">
+                                                <div className="flex justify-between items-center">
+                                                    <div>
+                                                        <h3 className="text-lg font-bold">📝 Полезные заметки</h3>
+                                                        <p className="text-xs text-slate-400">Важная путевая информация, адреса, телефоны</p>
+                                                    </div>
+                                                    <button onClick={() => openModal('notes')} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-700 transition">
+                                                        + Заметка
+                                                    </button>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    {noteCategories.map(cat => {
+                                                        const notesInCat = getField('notes').filter(n => n.category === cat);
+                                                        return (
+                                                            <div key={cat} className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+                                                                <div>
+                                                                    <span className="text-xs font-bold text-slate-400 tracking-wider uppercase mb-3 block">{cat}</span>
+                                                                    <div className="space-y-4">
+                                                                        {notesInCat.map(n => (
+                                                                            <div key={n.id} className="relative group border-l-2 border-indigo-500 pl-3 py-1">
+                                                                                <div className="flex justify-between items-start">
+                                                                                    <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200">{n.title}</h4>
+                                                                                    <button onClick={() => deleteItem('notes', n.id)} className="opacity-0 group-hover:opacity-100 p-1 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded">
+                                                                                        <Icon name="trash" size={14} />
+                                                                                    </button>
+                                                                                </div>
+                                                                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 whitespace-pre-line leading-relaxed">{n.content}</p>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                                {notesInCat.length === 0 && (
+                                                                    <div className="pt-4 text-center">
+                                                                        <span className="text-slate-300 text-[11px] font-medium">Нет записей в этой категории</span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* ПОДРАЗДЕЛ: МАРШРУТ (TIMELINE) */}
+                                        {infoSubTab === 'itinerary' && (
+                                            <div className="space-y-4 animate-in">
+                                                <div className="flex justify-between items-center">
+                                                    <div>
+                                                        <h3 className="text-lg font-bold">🗺️ Детальный маршрут</h3>
+                                                        <p className="text-xs text-slate-400">План мероприятий поездки по дням и часам</p>
+                                                    </div>
+                                                    <button onClick={() => openModal('itinerary')} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-700 transition">
+                                                        + Локация / Событие
+                                                    </button>
+                                                </div>
+
+                                                <div className="relative border-l-2 border-slate-200 dark:border-slate-800 ml-4 space-y-6 py-2">
+                                                    {getField('itinerary').map((item, index) => (
+                                                        <div key={item.id} className="relative pl-6 group">
+                                                            {/* Кружок таймлайна */}
+                                                            <div className="absolute -left-[7px] top-1.5 w-3 h-3 rounded-full bg-blue-600 border-2 border-white dark:border-slate-950"></div>
+                                                            
+                                                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 transition hover:shadow-md">
+                                                                <div className="space-y-1">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold px-2 py-0.5 rounded-full">{item.day}</span>
+                                                                        <span className="text-[10px] bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                                            <Icon name="clock" size={10} /> {item.time}
+                                                                        </span>
+                                                                    </div>
+                                                                    <h4 className="font-extrabold text-slate-800 dark:text-slate-200 text-sm">{item.title}</h4>
+                                                                    {item.content && <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed whitespace-pre-line">{item.content}</p>}
+                                                                </div>
+                                                                <button onClick={() => deleteItem('itinerary', item.id)} className="opacity-0 group-hover:opacity-100 p-1 bg-rose-50 text-rose-500 dark:bg-rose-950/40 dark:text-rose-400 rounded-lg hover:bg-rose-100 transition-all self-end md:self-center">
+                                                                    <Icon name="trash" size={16} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                    {getField('itinerary').length === 0 && (
+                                                        <div className="text-center py-10">
+                                                            <p className="text-slate-400 text-xs">Маршрут пока пуст. Добавьте свои первые остановки и трансферы.</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* ПОДРАЗДЕЛ: БЮДЖЕТ */}
+                                        {infoSubTab === 'budget' && (
+                                            <div className="space-y-4 animate-in">
+                                                <div className="flex justify-between items-center flex-wrap gap-2">
+                                                    <div>
+                                                        <h3 className="text-lg font-bold">💰 Контроль бюджета</h3>
+                                                        <p className="text-xs text-slate-400">Управляйте расходами во всех валютах с автоконвертацией</p>
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <select value={displayCurrency} onChange={e => setDisplayCurrency(e.target.value)} className="bg-slate-100 dark:bg-slate-800 border-0 text-xs rounded-xl px-3 py-2 font-bold focus:ring-2 focus:ring-blue-500">
+                                                            {Object.keys(exchangeRates).map(curr => <option key={curr} value={curr}>{curr}</option>)}
+                                                        </select>
+                                                        <button onClick={() => openModal('budget')} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-700 transition">
+                                                            + Добавить расход
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="bg-gradient-to-br from-emerald-900 to-teal-950 rounded-3xl p-6 text-white shadow-lg">
+                                                    <p className="text-xs text-emerald-200 uppercase tracking-wider font-bold">Общая сумма расходов (в валюте отображения)</p>
+                                                    <p className="text-3xl font-extrabold mt-1">{totalBudgetCost.toLocaleString(undefined, { maximumFractionDigits: 2 })} {displayCurrency}</p>
+                                                    <div className="text-[10px] text-emerald-300 mt-2">Курсы перерасчета на основе ваших настроек ⚙️</div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    {budgetCategories.map(cat => {
+                                                        const itemsInCat = getField('budget').filter(b => b.category === cat);
+                                                        const catTotal = itemsInCat.reduce((sum, i) => sum + convert(i.cost, i.currency, displayCurrency), 0);
+                                                        return (
+                                                            <div key={cat} className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+                                                                <div>
+                                                                    <div className="flex justify-between items-center mb-3">
+                                                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{cat}</span>
+                                                                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{catTotal.toLocaleString(undefined, { maximumFractionDigits: 1 })} {displayCurrency}</span>
+                                                                    </div>
+                                                                    <div className="space-y-2">
+                                                                        {itemsInCat.map(b => (
+                                                                            <div key={b.id} className="flex justify-between items-center py-1.5 border-b border-slate-100 dark:border-slate-800 last:border-0 group text-xs">
+                                                                                <span className="text-slate-700 dark:text-slate-300 font-semibold">{b.title}</span>
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <span className="font-bold text-slate-800 dark:text-white">{b.cost} {b.currency}</span>
+                                                                                    {b.currency !== displayCurrency && (
+                                                                                        <span className="text-[10px] text-slate-400">({convert(b.cost, b.currency, displayCurrency).toFixed(0)} {displayCurrency})</span>
+                                                                                    )}
+                                                                                    <button onClick={() => deleteItem('budget', b.id)} className="opacity-0 group-hover:opacity-100 p-0.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded">
+                                                                                        <Icon name="trash" size={14} />
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                                {itemsInCat.length === 0 && (
+                                                                    <div className="pt-4 text-center">
+                                                                        <span className="text-slate-300 text-[11px] font-medium">Пока нет расходов в этой категории</span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+
+                    {/* ----- УНИВЕРСАЛЬНАЯ МОДАЛКА ДОБАВЛЕНИЯ ----- */}
+                    {isModalOpen && (
+                        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                            <form onSubmit={handleAddItem} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl animate-in space-y-4">
+                                <h3 className="font-extrabold text-xl">
+                                    {modalType === 'tasks' ? '📌 Добавить задачу' : 
+                                     modalType === 'packing' ? '🧳 Добавить вещь' : 
+                                     modalType === 'notes' ? '📝 Новая заметка' : 
+                                     modalType === 'itinerary' ? '🗺️ Добавить событие' : 
+                                     '💰 Записать расход'}
+                                </h3>
+
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Название / Описание</label>
+                                        <input type="text" value={newItemName} onChange={e => setNewItemName(e.target.value)} placeholder="Например: Собрать аптечку" required className="bg-slate-100 dark:bg-slate-800 text-sm rounded-xl px-4 py-2.5 w-full focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white" />
                                     </div>
 
-                                    <div className="flex gap-2 pt-2">
-                                        <button type="button" onClick={() => setIsBudgetModalOpen(false)} className="flex-1 bg-slate-100 text-slate-500 font-bold p-3.5 text-xs rounded-xl">Отмена</button>
-                                        <button type="submit" className="flex-1 bg-blue-600 text-white font-bold p-3.5 text-xs rounded-xl hover:bg-blue-700">Сохранить</button>
+                                    {/* НАСТРОЙКИ ЗАДАЧИ */}
+                                    {modalType === 'tasks' && (
+                                        <>
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Временной пресет</label>
+                                                <select value={selectedTimePreset} onChange={e => { setSelectedTimePreset(e.target.value); setCustomDays(''); }} className="bg-slate-100 dark:bg-slate-800 text-sm rounded-xl px-4 py-2.5 w-full">
+                                                    {TIME_PRESETS.map(preset => <option key={preset} value={preset}>{preset}</option>)}
+                                                    <option value="custom">Свой срок (дней до поездки)</option>
+                                                </select>
+                                            </div>
+                                            {selectedTimePreset === 'custom' && (
+                                                <div>
+                                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Количество дней до отправления</label>
+                                                    <input type="number" min="1" value={customDays} onChange={e => setCustomDays(e.target.value)} placeholder="Например: 12" required className="bg-slate-100 dark:bg-slate-800 text-sm rounded-xl px-4 py-2.5 w-full" />
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+
+                                    {/* НАСТРОЙКИ ВЕЩЕЙ */}
+                                    {modalType === 'packing' && (
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Категория чемодана</label>
+                                            <div className="flex gap-2">
+                                                <select value={packingCat} onChange={e => setPackingCat(e.target.value)} className="bg-slate-100 dark:bg-slate-800 text-sm rounded-xl px-4 py-2.5 w-full">
+                                                    {packingCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                                </select>
+                                                <button type="button" onClick={() => { const val = prompt("Название категории:"); if(val) addCategory('packing', val); }} className="bg-slate-200 dark:bg-slate-700 px-4 rounded-xl font-bold">+</button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* НАСТРОЙКИ ЗАМЕТОК */}
+                                    {modalType === 'notes' && (
+                                        <>
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Содержимое</label>
+                                                <textarea value={newItemDetails} onChange={e => setNewItemDetails(e.target.value)} placeholder="Текст заметки..." rows="3" required className="bg-slate-100 dark:bg-slate-800 text-sm rounded-xl px-4 py-2.5 w-full resize-none text-slate-800 dark:text-white" />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Категория заметки</label>
+                                                <div className="flex gap-2">
+                                                    <select value={noteCategory} onChange={e => setNoteCategory(e.target.value)} className="bg-slate-100 dark:bg-slate-800 text-sm rounded-xl px-4 py-2.5 w-full">
+                                                        {noteCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                                    </select>
+                                                    <button type="button" onClick={() => { const val = prompt("Название категории:"); if(val) addCategory('notes', val); }} className="bg-slate-200 dark:bg-slate-700 px-4 rounded-xl font-bold">+</button>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {/* НАСТРОЙКИ МАРШРУТА */}
+                                    {modalType === 'itinerary' && (
+                                        <>
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Время</label>
+                                                <input type="time" value={itineraryTime} onChange={e => setItineraryTime(e.target.value)} required className="bg-slate-100 dark:bg-slate-800 text-sm rounded-xl px-4 py-2.5 w-full text-slate-800 dark:text-white" />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Детали (Необязательно)</label>
+                                                <textarea value={newItemDetails} onChange={e => setNewItemDetails(e.target.value)} placeholder="Например: Адрес аэропорта, номер брони..." rows="2" className="bg-slate-100 dark:bg-slate-800 text-sm rounded-xl px-4 py-2.5 w-full resize-none text-slate-800 dark:text-white" />
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {/* НАСТРОЙКИ РАСХОДОВ БЮДЖЕТА */}
+                                    {modalType === 'budget' && (
+                                        <>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Сумма</label>
+                                                    <input type="number" step="any" min="0" value={budgetCost} onChange={e => setBudgetCost(e.target.value)} placeholder="0.00" required className="bg-slate-100 dark:bg-slate-800 text-sm rounded-xl px-4 py-2.5 w-full text-slate-800 dark:text-white" />
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Валюта</label>
+                                                    <select value={budgetCurrency} onChange={e => setBudgetCurrency(e.target.value)} className="bg-slate-100 dark:bg-slate-800 text-sm rounded-xl px-4 py-2.5 w-full">
+                                                        {Object.keys(exchangeRates).map(curr => <option key={curr} value={curr}>{curr}</option>)}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Категория расхода</label>
+                                                <select value={budgetCat} onChange={e => setBudgetCat(e.target.value)} className="bg-slate-100 dark:bg-slate-800 text-sm rounded-xl px-4 py-2.5 w-full">
+                                                    {budgetCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                                </select>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                <div className="flex gap-3 pt-2">
+                                    <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 bg-slate-100 dark:bg-slate-800 py-2.5 rounded-xl font-bold hover:opacity-90 active:scale-95 transition text-sm">
+                                        Отмена
+                                    </button>
+                                    <button type="submit" className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl font-bold hover:bg-blue-700 active:scale-95 transition text-sm">
+                                        Добавить
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    {/* ----- МОДАЛКА УПРАВЛЕНИЯ ШАБЛОНАМИ ВЕЩЕЙ ----- */}
+                    {showTemplateModal && (
+                        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl animate-in space-y-4">
+                                <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                                    <h3 className="font-extrabold text-lg">📁 Шаблоны чемоданов</h3>
+                                    <button onClick={() => setShowTemplateModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <div className="space-y-1.5 max-h-56 overflow-y-auto no-scrollbar">
+                                        {packingTemplates.length > 0 ? (
+                                            packingTemplates.map(tpl => (
+                                                <div key={tpl.id} className="flex justify-between items-center bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">
+                                                    <div className="cursor-pointer flex-1" onClick={() => { applyTemplate(tpl.id); setShowTemplateModal(false); }}>
+                                                        <h4 className="font-bold text-xs">{tpl.name}</h4>
+                                                        <p className="text-[10px] text-slate-400 mt-0.5">Вещей в шаблоне: {tpl.items?.length || 0}</p>
+                                                    </div>
+                                                    <button onClick={() => deleteTemplate(tpl.id)} className="text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-950/40 p-1.5 rounded-lg">
+                                                        <Icon name="trash" size={14} />
+                                                    </button>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="text-center py-6 text-slate-400 text-xs">Нет сохраненных шаблонов</div>
+                                        )}
                                     </div>
-                                </form>
+
+                                    <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Сохранить текущие вещи как шаблон</p>
+                                        <div className="flex gap-2">
+                                            <input type="text" placeholder="Имя шаблона (Пляж, Лыжи...)" value={newTemplateName} onChange={e => setNewTemplateName(e.target.value)} className="bg-slate-100 dark:bg-slate-800 text-xs rounded-xl px-3 py-2 w-full text-slate-800 dark:text-white focus:outline-none" />
+                                            <button onClick={() => { if(newTemplateName.trim()) { saveAsTemplate(newTemplateName); setNewTemplateName(''); } }} className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-xl text-xs font-bold">
+                                                Создать
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -1193,8 +1110,10 @@
             );
         };
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
+        // Отрисовка приложения
+        const root = ReactDOM.createRoot(document.getElementById("root"));
         root.render(<App />);
     </script>
 </body>
 </html>
+
