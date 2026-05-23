@@ -346,7 +346,18 @@
             // Специфичные поля для новых типов данных
             const [newItineraryTime, setNewItineraryTime] = useState('10:00');
             const [newItineraryDay, setNewItineraryDay] = useState('День 1');
+            
+            // Состояния мультивалютности
             const [newBudgetCost, setNewBudgetCost] = useState('');
+            const [newBudgetCurrency, setNewBudgetCurrency] = useState('₽');
+            const [displayCurrency, setDisplayCurrency] = useState(() => safeStorage.getItem('displayCurrency') || '₽');
+            const [isRatesOpen, setIsRatesOpen] = useState(false);
+            const [exchangeRates, setExchangeRates] = useState(() => getInitialData('exchangeRates_v1', {
+                '₽': 1,
+                '$': 90,
+                '€': 98,
+                '¥': 12.5
+            }));
 
             const [tasks, setTasks] = useState(() => getInitialData('tasks', [
                 { id: 1, title: 'Проверить сроки паспортов', time: 'За 30 дней', completed: true },
@@ -369,10 +380,10 @@
                 { id: 802, day: 'День 1', time: '18:00', title: 'Ужин в порту', content: 'Рыбный ресторан с видом на закат' }
             ]));
 
-            const [budget, setBudget] = useState(() => getInitialData('budget_v1', [
-                { id: 701, title: 'Авиабилеты', cost: 12000, category: 'Транспорт' },
-                { id: 702, title: 'Отель Riviera', cost: 25000, category: 'Жилье' },
-                { id: 703, title: 'Сувениры', cost: 4500, category: 'Развлечения' }
+            const [budget, setBudget] = useState(() => getInitialData('budget_v2', [
+                { id: 701, title: 'Авиабилеты', cost: 12000, currency: '₽', category: 'Транспорт' },
+                { id: 702, title: 'Отель Riviera', cost: 250, currency: '$', category: 'Жилье' },
+                { id: 703, title: 'Ужин в ресторане', cost: 65, currency: '€', category: 'Питание' }
             ]));
 
             const [lastMinute, setLastMinute] = useState(() => getInitialData('lastMinute', [
@@ -392,9 +403,11 @@
                 safeStorage.setItem('packingList_v3', JSON.stringify(packingList));
                 safeStorage.setItem('notes_v2', JSON.stringify(notes));
                 safeStorage.setItem('itinerary_v1', JSON.stringify(itinerary));
-                safeStorage.setItem('budget_v1', JSON.stringify(budget));
+                safeStorage.setItem('budget_v2', JSON.stringify(budget));
                 safeStorage.setItem('lastMinute', JSON.stringify(lastMinute));
-            }, [tripName, tripDate, packingCategories, noteCategories, budgetCategories, tasks, packingList, notes, itinerary, budget, lastMinute]);
+                safeStorage.setItem('displayCurrency', displayCurrency);
+                safeStorage.setItem('exchangeRates_v1', JSON.stringify(exchangeRates));
+            }, [tripName, tripDate, packingCategories, noteCategories, budgetCategories, tasks, packingList, notes, itinerary, budget, lastMinute, displayCurrency, exchangeRates]);
 
             // Синхронизация тёмной темы в DOM
             useEffect(() => {
@@ -459,6 +472,20 @@
                 }
             };
 
+            // Конвертация валют
+            const convertCurrency = (amount, from, to) => {
+                const amountNum = Number(amount) || 0;
+                if (!from) from = '₽';
+                if (!to) to = '₽';
+                if (from === to) return amountNum;
+                
+                const rates = exchangeRates || { '₽': 1, '$': 90, '€': 98, '¥': 12.5 };
+                // Конвертируем в базовую валюту (Рубли)
+                const inRub = amountNum * (rates[from] || 1);
+                // Переводим в целевую валюту
+                return inRub / (rates[to] || 1);
+            };
+
             const handleAddItem = (e) => {
                 e.preventDefault();
                 if (!newItemName.trim()) return;
@@ -475,8 +502,9 @@
                         setItinerary([{ id, day: newItineraryDay, time: newItineraryTime, title: newItemName, content: newItemContent }, ...itinerary]);
                     } else if (infoSubTab === 'budget') {
                         const parsedCost = parseFloat(newBudgetCost) || 0;
-                        setBudget([{ id, title: newItemName, cost: parsedCost, category: newBudgetCause }, ...budget]);
+                        setBudget([{ id, title: newItemName, cost: parsedCost, currency: newBudgetCurrency, category: newBudgetCause }, ...budget]);
                         setNewBudgetCost('');
+                        setNewBudgetCurrency('₽');
                     }
                 }
                 
@@ -512,7 +540,13 @@
                 } else if (type === 'itinerary') {
                     setItinerary(itinerary.map(i => i.id === data.id ? data : i));
                 } else if (type === 'budget') {
-                    setBudget(budget.map(b => b.id === data.id ? { ...b, title: data.title, cost: parseFloat(data.cost) || 0, category: data.category } : b));
+                    setBudget(budget.map(b => b.id === data.id ? { 
+                        ...b, 
+                        title: data.title, 
+                        cost: parseFloat(data.cost) || 0, 
+                        currency: data.currency || '₽',
+                        category: data.category 
+                    } : b));
                 }
 
                 setEditingEntity(null);
@@ -679,7 +713,11 @@
 
             const exportData = () => {
                 try {
-                    const data = { tripName, tripDate, packingCategories, noteCategories, budgetCategories, tasks, packingList, notes, itinerary, budget, lastMinute };
+                    const data = { 
+                        tripName, tripDate, packingCategories, noteCategories, budgetCategories, 
+                        tasks, packingList, notes, itinerary, budget, lastMinute,
+                        displayCurrency, exchangeRates 
+                    };
                     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                     const a = document.createElement('a');
                     a.href = URL.createObjectURL(blob);
@@ -710,6 +748,8 @@
                         if (data.itinerary) setItinerary(data.itinerary);
                         if (data.budget) setBudget(data.budget);
                         if (data.lastMinute) setLastMinute(data.lastMinute);
+                        if (data.displayCurrency) setDisplayCurrency(data.displayCurrency);
+                        if (data.exchangeRates) setExchangeRates(data.exchangeRates);
                         
                         if (data.packingCategories && data.packingCategories.length > 0) {
                             setActivePackingCat(data.packingCategories[0]);
@@ -748,12 +788,20 @@
                         setActivePackingCat('Мои вещи');
                         setSelectedCategory('Адреса');
                         setNewBudgetCause('Транспорт');
+                        setDisplayCurrency('₽');
+                        setExchangeRates({ '₽': 1, '$': 90, '€': 98, '¥': 12.5 });
                     }
                 );
             };
 
             const progress = Math.round((tasks.filter(t => t.completed).length / (tasks.length || 1)) * 100);
-            const totalBudgetSpent = budget.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
+            
+            // Расчет суммарного бюджета с конвертацией всех расходов в целевую валюту
+            const totalBudgetSpent = budget.reduce((sum, item) => {
+                const cost = Number(item.cost) || 0;
+                const currency = item.currency || '₽';
+                return sum + convertCurrency(cost, currency, displayCurrency);
+            }, 0);
 
             const navigationItems = [
                 {id:'home', icon:'home', label:'Старт'}, 
@@ -857,7 +905,6 @@
                         </div>
                     </div>
 
-                    {}
                     {/* Основной контент справа */}
                     <div className="flex-1 flex flex-col min-h-0 relative">
                         
@@ -959,7 +1006,6 @@
                                 </div>
                             )}
 
-                            {}
                             {/* ТАБ: ВЕЩИ В ДОРОГУ */}
                             {activeTab === 'packing' && (
                                 <div className="space-y-6 animate-in">
@@ -1079,7 +1125,6 @@
                                 </div>
                             )}
 
-                            {}
                             {/* ТАБ: ПОЕЗДКА ДЕТАЛЬНО */}
                             {activeTab === 'notes' && (
                                 <div className="space-y-6 animate-in">
@@ -1253,10 +1298,64 @@
                                         </div>
                                     )}
 
-                                    {/* ПОДВКЛАДКА: БЮДЖЕТ */}
+                                    {/* ПОДВКЛАДКА: БЮДЖЕТ (ОБНОВЛЕННАЯ С МУЛЬТИВАЛЮТНОСТЬЮ) */}
+                                    {}
                                     {infoSubTab === 'budget' && (
                                         <div className="space-y-6 animate-in">
                                             
+                                            {/* Настройка отображения валюты и курсов */}
+                                            <div className="space-y-4">
+                                                <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-200/60 dark:border-slate-800 shadow-sm">
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Основная валюта итога:</span>
+                                                        <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200/50 dark:border-slate-800">
+                                                            {['₽', '$', '€', '¥'].map(curr => (
+                                                                <button
+                                                                    key={curr}
+                                                                    onClick={() => setDisplayCurrency(curr)}
+                                                                    className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all ${displayCurrency === curr ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                                                                >
+                                                                    {curr}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => setIsRatesOpen(!isRatesOpen)}
+                                                        className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1.5 rounded-xl border border-emerald-100 dark:border-emerald-900/40"
+                                                    >
+                                                        <Icon name="edit-2" size={12} /> {isRatesOpen ? "Скрыть настройки курсов" : "Редактировать курсы валют"}
+                                                    </button>
+                                                </div>
+
+                                                {/* Интерактивное редактирование курсов */}
+                                                {isRatesOpen && (
+                                                    <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-emerald-100 dark:border-slate-800/60 shadow-sm space-y-3 animate-in">
+                                                        <h5 className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Текущий курс обмена в Рублях (₽)</h5>
+                                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                            {['$', '€', '¥'].map(curr => (
+                                                                <div key={curr} className="space-y-1">
+                                                                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block">1 {curr} равно</label>
+                                                                    <div className="relative">
+                                                                        <input
+                                                                            type="number"
+                                                                            step="0.01"
+                                                                            value={exchangeRates[curr] || ''}
+                                                                            onChange={e => {
+                                                                                const val = parseFloat(e.target.value) || 0;
+                                                                                setExchangeRates(prev => ({ ...prev, [curr]: val }));
+                                                                            }}
+                                                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-2 pl-3 pr-8 text-xs font-bold text-slate-800 dark:text-white outline-none"
+                                                                        />
+                                                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₽</span>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
                                             {/* Управление категориями расходов */}
                                             <div className="flex gap-2 items-center overflow-x-auto py-2 no-scrollbar w-full border-b border-slate-200/60 dark:border-slate-800/60 pb-4">
                                                 <span className="text-[10px] font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider flex-shrink-0">Статьи бюджета:</span>
@@ -1326,9 +1425,9 @@
 
                                             {/* Виджет суммарных трат */}
                                             <div className="bg-gradient-to-r from-emerald-500 to-teal-600 dark:from-emerald-900/60 dark:to-teal-900/60 p-6 rounded-[2rem] text-white shadow-md max-w-md">
-                                                <span className="text-xs font-semibold text-emerald-100 uppercase tracking-wider block mb-1">ОБЩИЙ РАСХОД ПОЕЗДКИ</span>
+                                                <span className="text-xs font-semibold text-emerald-100 uppercase tracking-wider block mb-1">ОБЩИЙ РАСХОД ПОЕЗДКИ ({displayCurrency})</span>
                                                 <h3 className="text-3xl font-bold flex items-baseline gap-1">
-                                                    {totalBudgetSpent.toLocaleString('ru-RU')} <span className="text-base font-normal">₽</span>
+                                                    {totalBudgetSpent.toLocaleString('ru-RU', { maximumFractionDigits: 1 })} <span className="text-base font-normal">{displayCurrency}</span>
                                                 </h3>
                                             </div>
 
@@ -1337,25 +1436,35 @@
                                                 <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200/60 dark:border-slate-800 shadow-sm space-y-4">
                                                     <h4 className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest pb-2 border-b dark:border-slate-800">Смета расходов</h4>
                                                     <div className="space-y-3">
-                                                        {budget.map(item => (
-                                                            <div key={item.id} className="group flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-950 hover:bg-white dark:hover:bg-slate-900 border border-transparent hover:border-slate-100 dark:hover:border-slate-800 rounded-xl transition-all">
-                                                                <div>
-                                                                    <h5 className="text-xs font-bold text-slate-800 dark:text-slate-200">{item.title}</h5>
-                                                                    <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">{item.category}</span>
-                                                                </div>
-                                                                <div className="flex items-center gap-3">
-                                                                    <span className="text-xs font-extrabold text-slate-900 dark:text-slate-100">{(Number(item.cost) || 0).toLocaleString('ru-RU')} ₽</span>
-                                                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                                                                        <button onClick={() => startEditing('budget', item)} className="text-slate-400 hover:text-blue-500">
-                                                                            <Icon name="edit-2" size={12} />
-                                                                        </button>
-                                                                        <button onClick={() => deleteItem('budget', item.id)} className="text-slate-400 hover:text-red-500">
-                                                                            <Icon name="x" size={13} />
-                                                                        </button>
+                                                        {budget.map(item => {
+                                                            const itemCurrency = item.currency || '₽';
+                                                            const convertedCost = convertCurrency(item.cost, itemCurrency, displayCurrency);
+                                                            const isDifferent = itemCurrency !== displayCurrency;
+                                                            return (
+                                                                <div key={item.id} className="group flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-950 hover:bg-white dark:hover:bg-slate-900 border border-transparent hover:border-slate-100 dark:hover:border-slate-800 rounded-xl transition-all">
+                                                                    <div>
+                                                                        <h5 className="text-xs font-bold text-slate-800 dark:text-slate-200">{item.title}</h5>
+                                                                        <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">{item.category}</span>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="text-right flex flex-col items-end">
+                                                                            <span className="text-xs font-extrabold text-slate-900 dark:text-slate-100">{(Number(item.cost) || 0).toLocaleString('ru-RU')} {itemCurrency}</span>
+                                                                            {isDifferent && (
+                                                                                <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500">≈ {convertedCost.toLocaleString('ru-RU', { maximumFractionDigits: 1 })} {displayCurrency}</span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                                                            <button onClick={() => startEditing('budget', item)} className="text-slate-400 hover:text-blue-500">
+                                                                                <Icon name="edit-2" size={12} />
+                                                                            </button>
+                                                                            <button onClick={() => deleteItem('budget', item.id)} className="text-slate-400 hover:text-red-500">
+                                                                                <Icon name="x" size={13} />
+                                                                            </button>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
-                                                            </div>
-                                                        ))}
+                                                            );
+                                                        })}
                                                         {budget.length === 0 && <div className="text-center p-6 text-xs text-slate-400">Нет добавленных расходов.</div>}
                                                     </div>
                                                 </div>
@@ -1365,16 +1474,18 @@
                                                     <h4 className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest pb-2 border-b dark:border-slate-800">Аналитика по секторам</h4>
                                                     <div className="space-y-3">
                                                         {budgetCategories.map(cat => {
-                                                            const catCost = budget.filter(b => b.category === cat).reduce((sum, current) => sum + (Number(current.cost) || 0), 0);
+                                                            const catCost = budget.filter(b => b.category === cat).reduce((sum, current) => {
+                                                                return sum + convertCurrency(current.cost, current.currency || '₽', displayCurrency);
+                                                            }, 0);
                                                             const percentage = totalBudgetSpent > 0 ? Math.round((catCost / totalBudgetSpent) * 100) : 0;
                                                             return (
                                                                 <div key={cat} className="space-y-1">
                                                                     <div className="flex justify-between items-center text-[11px] font-semibold">
                                                                         <span className="text-slate-500 dark:text-slate-400">{cat}</span>
-                                                                        <span className="text-slate-800 dark:text-slate-200">{catCost.toLocaleString('ru-RU')} ₽ ({percentage}%)</span>
+                                                                        <span className="text-slate-800 dark:text-slate-200">{catCost.toLocaleString('ru-RU', { maximumFractionDigits: 1 })} {displayCurrency} ({percentage}%)</span>
                                                                     </div>
                                                                     <div className="w-full bg-slate-100 dark:bg-slate-950 h-1.5 rounded-full overflow-hidden">
-                                                                        <div className="bg-emerald-500 h-full" style={{ width: `${percentage}%` }}></div>
+                                                                        <div className="bg-emerald-500 h-full transition-all duration-500" style={{ width: `${percentage}%` }}></div>
                                                                     </div>
                                                                 </div>
                                                             );
@@ -1406,8 +1517,8 @@
                         </div>
                     </div>
 
+                    {/* МОДАЛЬНОЕ ОКНО СОЗДАНИЯ (ОБНОВЛЕННОЕ С МУЛЬТИВАЛЮТНОСТЬЮ) */}
                     {}
-                    {/* МОДАЛЬНОЕ ОКНО СОЗДАНИЯ */}
                     {isModalOpen && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}></div>
@@ -1560,10 +1671,21 @@
                                     )}
 
                                     {activeTab === 'notes' && infoSubTab === 'budget' && (
-                                        <div className="space-y-4">
-                                            <div>
-                                                <label className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase mb-1 block">Стоимость (₽)</label>
-                                                <input type="number" placeholder="Например: 5000" value={newBudgetCost} onChange={e => setNewBudgetCost(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl p-3 text-sm font-bold text-slate-900 dark:text-white" required />
+                                        <div className="space-y-4 animate-in">
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <div className="col-span-2">
+                                                    <label className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase mb-1 block">Стоимость</label>
+                                                    <input type="number" placeholder="Например: 5000" value={newBudgetCost} onChange={e => setNewBudgetCost(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl p-3 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 ring-blue-500/20 transition-all" required />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase mb-1 block">Валюта</label>
+                                                    <select value={newBudgetCurrency} onChange={e => setNewBudgetCurrency(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl p-3 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 ring-blue-500/20 cursor-pointer">
+                                                        <option value="₽">₽ (RUB)</option>
+                                                        <option value="$">$ (USD)</option>
+                                                        <option value="€">€ (EUR)</option>
+                                                        <option value="¥">¥ (CNY)</option>
+                                                    </select>
+                                                </div>
                                             </div>
                                             <div className="space-y-2">
                                                 <label className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase block">Категория трат:</label>
@@ -1634,7 +1756,8 @@
                         </div>
                     )}
 
-                    {/* МОДАЛЬНОЕ ОКНО РЕДАКТИРОВАНИЯ */}
+                    {/* МОДАЛЬНОЕ ОКНО РЕДАКТИРОВАНИЯ (ОБНОВЛЕННОЕ С МУЛЬТИВАЛЮТНОСТЬЮ) */}
+                    {}
                     {editingEntity && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setEditingEntity(null)}></div>
@@ -1759,24 +1882,45 @@
                                         </div>
                                     )}
 
-                                    {/* Редактирование расходов */}
+                                    {/* Редактирование расходов с мультивалютностью */}
                                     {editingEntity.type === 'budget' && (
                                         <div className="space-y-4">
-                                            <div>
-                                                <label className="text-[10px] font-extrabold text-slate-400 uppercase mb-1 block">Стоимость (₽)</label>
-                                                <input 
-                                                    type="number" 
-                                                    value={editingEntity.data.cost || 0} 
-                                                    onChange={e => {
-                                                        const val = e.target.value;
-                                                        setEditingEntity(prev => {
-                                                            if (!prev) return null;
-                                                            return { ...prev, data: { ...prev.data, cost: val } };
-                                                        });
-                                                    }} 
-                                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl p-3 text-sm font-bold text-slate-900 dark:text-white" 
-                                                    required 
-                                                />
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <div className="col-span-2">
+                                                    <label className="text-[10px] font-extrabold text-slate-400 uppercase mb-1 block">Стоимость</label>
+                                                    <input 
+                                                        type="number" 
+                                                        value={editingEntity.data.cost || 0} 
+                                                        onChange={e => {
+                                                            const val = e.target.value;
+                                                            setEditingEntity(prev => {
+                                                                if (!prev) return null;
+                                                                return { ...prev, data: { ...prev.data, cost: val } };
+                                                            });
+                                                        }} 
+                                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl p-3 text-sm font-bold text-slate-900 dark:text-white" 
+                                                        required 
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-extrabold text-slate-400 uppercase mb-1 block">Валюта</label>
+                                                    <select 
+                                                        value={editingEntity.data.currency || '₽'} 
+                                                        onChange={e => {
+                                                            const val = e.target.value;
+                                                            setEditingEntity(prev => {
+                                                                if (!prev) return null;
+                                                                return { ...prev, data: { ...prev.data, currency: val } };
+                                                            });
+                                                        }} 
+                                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl p-3 text-sm font-bold text-slate-900 dark:text-white cursor-pointer"
+                                                    >
+                                                        <option value="₽">₽</option>
+                                                        <option value="$">$</option>
+                                                        <option value="€">€</option>
+                                                        <option value="¥">¥</option>
+                                                    </select>
+                                                </div>
                                             </div>
                                             <div className="flex flex-wrap gap-1.5">
                                                 {budgetCategories.map(cat => (
